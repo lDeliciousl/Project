@@ -88,6 +88,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     port: PORT,
+    containerId: process.env.HOSTNAME || 'unknown',
     redis: redisClient.getClient().isOpen ? 'connected' : 'disconnected',
     access_via: 'http://localhost:8080/health (через Nginx)'
   };
