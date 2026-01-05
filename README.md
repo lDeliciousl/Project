@@ -21,7 +21,7 @@
 Шаг 1: Клонирование и настройка
 bash
 # 1. Клонируем репозиторий
-git clone https://github.com/ваш-логин/testing-system.git
+git clone https://github.com/ваш-логин/Project
 cd testing-system
 
 # 2. Копируем настройки окружения
