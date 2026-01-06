@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # MongoDB - основная база данных
+  mongodb:
+    image: mongo:6
+    container_name: auth-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: auth_db
+    volumes:
+      - mongodb_data:/data/db
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - auth-network
+
+  # Redis - для хранения сессий
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - auth-network
+
+  # Модуль авторизации
+  auth-module:
+    build: .
+    container_name: auth-module
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - DB_HOST=mongodb
+      - REDIS_HOST=redis
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+    networks:
+      - auth-network
+    command: air -c .air.toml  # Hot reload для разработки
+
+volumes:
+  mongodb_data:
+  redis_data:
+  go-mod-cache:
+
+networks:
+  auth-network:
+    driver: bridge
