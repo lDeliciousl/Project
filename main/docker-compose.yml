@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  # База данных для Главного модуля
+  # База данных
   main-postgres:
-    build: ./main-postgres
+    image: postgres:15-alpine
     container_name: testing-main-postgres
     restart: unless-stopped
     environment:
@@ -14,18 +14,18 @@ services:
       - "5433:5432"
     volumes:
       - main_postgres_data:/var/lib/postgresql/data
-      - ./main-module/init.sql:/docker-entrypoint-initdb.d/02-schema.sql
-    networks:
-      - testing-network
+      - ./main-module/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U main_module"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Главный модуль (C++ сервер)
+  # Главный модуль
   main-module:
-    build: ./main-module
+    build:
+      context: ./main-module
+      dockerfile: Dockerfile
     container_name: testing-main-module
     restart: unless-stopped
     ports:
@@ -37,19 +37,12 @@ services:
       DB_USER: main_module
       DB_PASSWORD: secret123
       SERVER_PORT: 3002
-      JWT_SECRET: development_secret_key
-      LOG_LEVEL: info
+      JWT_SECRET: test_secret
     depends_on:
       main-postgres:
         condition: service_healthy
-    networks:
-      - testing-network
-    volumes:
-      - ./logs:/app/logs
-
-networks:
-  testing-network:
-    external: true
+    stdin_open: true
+    tty: true
 
 volumes:
   main_postgres_data:
