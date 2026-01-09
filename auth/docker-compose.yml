@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Наш модуль авторизации
+  auth-module:
+    build: .
+    container_name: auth-module
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/auth
+      - REDIS_URL=redis://redis:6379/0
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID}
+      - YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - auth-network
+    volumes:
+      - ./:/app
+      - go-mod-cache:/go/pkg/mod
+    command: go run main.go
+
+  # MongoDB
+  mongo:
+    image: mongo:6
+    container_name: auth-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - auth-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - auth-network
+
+volumes:
+  mongo_data:
+  redis_data:
+  go-mod-cache:
+
+networks:
+  auth-network:
+    driver: bridge
