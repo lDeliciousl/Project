@@ -17,16 +17,18 @@ type RefreshToken struct {
 
 // User представляет пользователя в системе
 type User struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Email      string             `bson:"email" json:"email" validate:"required,email"`
-	Name       string             `bson:"name" json:"name" validate:"required"`
-	Roles      []string           `bson:"roles" json:"roles"`
-	AvatarURL  string             `bson:"avatar_url,omitempty" json:"avatar_url,omitempty"`
-	Provider   string             `bson:"provider" json:"provider"` // github, yandex, code
-	ProviderID string             `bson:"provider_id,omitempty" json:"provider_id,omitempty"`
-	IsActive   bool               `bson:"is_active" json:"is_active" default:"true"`
-	CreatedAt  time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt  time.Time          `bson:"updated_at" json:"updated_at"`
+	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Email         string             `bson:"email" json:"email" validate:"required,email"`
+	Name          string             `bson:"name" json:"name" validate:"required"`
+	Roles         []string           `bson:"roles" json:"roles"`
+	AvatarURL     string             `bson:"avatar_url,omitempty" json:"avatar_url,omitempty"`
+	Provider      string             `bson:"provider" json:"provider"` // github, yandex, code
+	ProviderID    string             `bson:"provider_id,omitempty" json:"provider_id,omitempty"`
+	IsActive      bool               `bson:"is_active" json:"is_active" default:"true"`
+	Blocked       bool               `bson:"blocked" json:"blocked"`
+	CreatedAt     time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt     time.Time          `bson:"updated_at" json:"updated_at"`
+	RefreshTokens []RefreshToken     `bson:"refresh_tokens,omitempty" json:"refresh_tokens,omitempty"`
 }
 
 // UserData для ответа API

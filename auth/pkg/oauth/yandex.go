@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/yourname/auth-module/internal/models"
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/models"
 )
 
 // YandexEndpoint это OAuth2 эндпоинты Яндекса

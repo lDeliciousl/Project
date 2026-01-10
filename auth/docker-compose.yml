@@ -19,8 +19,10 @@ services:
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy  # Ждем готовности MongoDB
+      redis:
+        condition: service_healthy  # Ждем готовности Redis
     networks:
       - auth-network
     volumes:
@@ -39,6 +41,11 @@ services:
       - mongo_data:/data/db
     networks:
       - auth-network
+    healthcheck:  # Добавьте healthcheck
+        test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
   # Redis
   redis:
@@ -51,6 +58,11 @@ services:
       - redis_data:/data
     networks:
       - auth-network
+    healthcheck:
+        test: ["CMD", "redis-cli", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
 
 volumes:
   mongo_data:

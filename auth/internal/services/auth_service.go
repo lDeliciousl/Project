@@ -1,0 +1,333 @@
+package services
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/models"
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/repository"
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/pkg/jwt"
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/pkg/oauth"
+)
+
+// AuthService сервис для работы с авторизацией
+type AuthService interface {
+	InitAuth(ctx context.Context, authType, loginToken string) (string, error)
+	HandleOAuthCallback(ctx context.Context, providerType, code, state string) error
+	VerifyAuthStatus(ctx context.Context, loginToken string) (*models.VerifyResponse, error)
+	GenerateAuthCode(ctx context.Context, loginToken, email string) (string, error)
+	VerifyAuthCode(ctx context.Context, loginToken, code string) error
+	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
+	Logout(ctx context.Context, refreshToken string) error
+}
+
+type authService struct {
+	sessionRepo  repository.SessionRepository
+	userRepo     repository.UserRepository
+	jwtService   jwt.JWTService
+	oauthManager *oauth.Manager
+	codeExpiry   time.Duration
+}
+
+func NewAuthService(
+	sessionRepo repository.SessionRepository,
+	userRepo repository.UserRepository,
+	jwtService jwt.JWTService,
+	oauthManager *oauth.Manager,
+) AuthService {
+	return &authService{
+		sessionRepo:  sessionRepo,
+		userRepo:     userRepo,
+		jwtService:   jwtService,
+		oauthManager: oauthManager,
+		codeExpiry:   10 * time.Minute, // Код живет 10 минут
+	}
+}
+
+// InitAuth инициализирует процесс авторизации
+func (s *authService) InitAuth(ctx context.Context, authType, loginToken string) (string, error) {
+	// Проверяем тип авторизации
+	switch authType {
+	case "github", "yandex":
+		return s.initOAuth(ctx, authType, loginToken)
+	case "code":
+		return s.initCodeAuth(ctx, loginToken)
+	default:
+		return "", fmt.Errorf("unsupported auth type: %s", authType)
+	}
+}
+
+// initOAuth инициализирует OAuth авторизацию
+func (s *authService) initOAuth(ctx context.Context, providerType, loginToken string) (string, error) {
+	// Создаем сессию
+	session := &models.LoginSession{
+		LoginToken: loginToken,
+		Status:     models.StatusPending,
+		Type:       providerType,
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Получаем URL для редиректа
+	authURL, err := s.oauthManager.GetAuthURL(oauth.ProviderType(providerType), loginToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to get auth URL: %w", err)
+	}
+
+	return authURL, nil
+}
+
+// initCodeAuth инициализирует авторизацию по коду
+func (s *authService) initCodeAuth(ctx context.Context, loginToken string) (string, error) {
+	// Создаем сессию для кода
+	session := &models.LoginSession{
+		LoginToken: loginToken,
+		Status:     models.StatusPending,
+		Type:       "code",
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	// Для кодовой авторизации не нужен URL для редиректа
+	// Клиент должен отправить email и получить код
+	return "code_auth_initialized", nil
+}
+
+// HandleOAuthCallback обрабатывает callback от OAuth провайдера
+func (s *authService) HandleOAuthCallback(ctx context.Context, providerType, code, state string) error {
+	// state - это наш login_token
+	loginToken := state
+
+	// Получаем сессию
+	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
+	if err != nil {
+		return fmt.Errorf("failed to find session: %w", err)
+	}
+
+	if session == nil {
+		return errors.New("session not found")
+	}
+
+	if session.Status != models.StatusPending {
+		return fmt.Errorf("session status is %s, expected pending", session.Status)
+	}
+
+	// Обрабатываем OAuth callback
+	user, err := s.oauthManager.HandleCallback(ctx, oauth.ProviderType(providerType), code)
+	if err != nil {
+		// Обновляем статус на denied при ошибке
+		_ = s.sessionRepo.UpdateStatus(ctx, loginToken, models.StatusDenied)
+		return fmt.Errorf("failed to handle OAuth callback: %w", err)
+	}
+
+	// Сохраняем или обновляем пользователя
+	dbUser, err := s.userRepo.UpsertByProvider(ctx, providerType, user.ProviderID, user)
+	if err != nil {
+		_ = s.sessionRepo.UpdateStatus(ctx, loginToken, models.StatusDenied)
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	// Генерируем токены
+	accessToken, err := s.jwtService.GenerateAccessToken(
+		dbUser.ID.Hex(),
+		dbUser.Email,
+		dbUser.Roles,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	refreshToken, err := s.jwtService.GenerateRefreshToken(dbUser.Email)
+	if err != nil {
+		return fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Обновляем сессию с токенами
+	err = s.sessionRepo.UpdateTokens(ctx, loginToken, accessToken, refreshToken, dbUser.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update session: %w", err)
+	}
+
+	return nil
+}
+
+// GenerateAuthCode генерирует код для авторизации
+func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email string) (string, error) {
+	// Проверяем сессию
+	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
+	if err != nil {
+		return "", fmt.Errorf("failed to find session: %w", err)
+	}
+
+	if session == nil {
+		return "", errors.New("session not found")
+	}
+
+	if session.Type != "code" {
+		return "", errors.New("invalid session type")
+	}
+
+	// Генерируем случайный код (6 цифр)
+	code := generateRandomCode(6)
+
+	// Сохраняем код в сессии
+	err = s.sessionRepo.SetCode(ctx, loginToken, code)
+	if err != nil {
+		return "", fmt.Errorf("failed to set code: %w", err)
+	}
+
+	return code, nil
+}
+
+// VerifyAuthCode проверяет код авторизации
+func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code string) error {
+	// Получаем сессию
+	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
+	if err != nil {
+		return fmt.Errorf("failed to find session: %w", err)
+	}
+
+	if session == nil {
+		return errors.New("session not found")
+	}
+
+	if session.Type != "code" {
+		return errors.New("invalid session type")
+	}
+
+	// Проверяем код
+	if session.Code != code {
+		return errors.New("invalid code")
+	}
+
+	// TODO: Здесь нужно получить email пользователя (например, из запроса)
+	// и создать/найти пользователя
+
+	return nil
+}
+
+// VerifyAuthStatus проверяет статус авторизации
+func (s *authService) VerifyAuthStatus(ctx context.Context, loginToken string) (*models.VerifyResponse, error) {
+	// Получаем сессию
+	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find session: %w", err)
+	}
+
+	if session == nil {
+		return &models.VerifyResponse{
+			Status: models.StatusExpired,
+		}, nil
+	}
+
+	// Проверяем не истекла ли сессия
+	if time.Now().After(session.ExpiresAt) {
+		_ = s.sessionRepo.UpdateStatus(ctx, loginToken, models.StatusExpired)
+		return &models.VerifyResponse{
+			Status: models.StatusExpired,
+		}, nil
+	}
+
+	// Если авторизация не завершена, возвращаем текущий статус
+	if session.Status != models.StatusGranted {
+		return &models.VerifyResponse{
+			Status: session.Status,
+		}, nil
+	}
+
+	// Если авторизация завершена, получаем данные пользователя
+	var userData *models.UserData
+
+	if !session.UserID.IsZero() {
+		user, err := s.userRepo.FindByID(ctx, session.UserID)
+		if err == nil && user != nil {
+			data := user.ConvertToUserData()
+			userData = &data
+		}
+	}
+
+	return &models.VerifyResponse{
+		Status:       session.Status,
+		AccessToken:  session.AccessToken,
+		RefreshToken: session.RefreshToken,
+		UserData:     userData,
+	}, nil
+}
+
+// RefreshTokens обновляет токены
+func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error) {
+	// Валидируем refresh токен
+	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Находим пользователя
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Генерируем новые токены
+	accessToken, err := s.jwtService.GenerateAccessToken(
+		user.ID.Hex(),
+		user.Email,
+		user.Roles,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	newRefreshToken, err := s.jwtService.GenerateRefreshToken(user.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	return &models.TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    15 * 60, // 15 минут в секундах
+	}, nil
+}
+
+// Logout выходит из системы
+func (s *authService) Logout(ctx context.Context, refreshToken string) error {
+	// Валидируем токен
+	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		// Если токен невалидный, все равно считаем выход успешным
+		return nil
+	}
+
+	// TODO: Здесь можно добавить логику для инвалидации токена
+	// Например, добавить токен в черный список
+
+	_ = email // Пока не используем
+
+	return nil
+}
+
+// generateRandomCode генерирует случайный код из цифр
+func generateRandomCode(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+
+	code := ""
+	for i := 0; i < length; i++ {
+		code += fmt.Sprintf("%d", b[i]%10)
+	}
+
+	return code
+}

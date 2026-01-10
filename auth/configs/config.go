@@ -26,15 +26,16 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URI     string
-	Name    string
-	Timeout time.Duration
+	URI     string        `json:"uri"`
+	Name    string        `json:"name"`
+	Timeout time.Duration `json:"timeout"`
 }
 
 type RedisConfig struct {
-	URL      string
-	Password string
-	DB       int
+	URL      string `json:"url"`
+	Password string `json:"password"`
+	Addr     string `json:"addr"`
+	DB       int    `json:"db"`
 }
 
 type JWTConfig struct {
@@ -76,7 +77,7 @@ func Load() error {
 			WriteTimeout: getEnvAsDuration("WRITE_TIMEOUT", 10*time.Second),
 		},
 		Database: DatabaseConfig{
-			URI:     getEnv("MONGODB_URI", "mongodb://localhost:27017/auth"),
+			URI:     getEnv("MONGODB_URI", "mongodb://mongo:27017/auth_db"),
 			Name:    getEnv("MONGODB_NAME", "auth"),
 			Timeout: getEnvAsDuration("MONGODB_TIMEOUT", 10*time.Second),
 		},
