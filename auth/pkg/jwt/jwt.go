@@ -9,12 +9,12 @@ import (
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/models"
 )
 
-// JWTService отвечает за работу с JWT токенами
+// JWTService интерфейс для работы с JWT
 type JWTService interface {
 	GenerateAccessToken(userID, email string, roles []string) (string, error)
 	GenerateRefreshToken(email string) (string, error)
 	ValidateAccessToken(tokenString string) (*models.Claims, error)
-	ValidateRefreshToken(tokenString string) (string, error)
+	ValidateRefreshToken(tokenString string) (string, error) // Возвращает email
 }
 
 type jwtService struct {

@@ -6,6 +6,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type RefreshToken struct {
+	Token     string    `bson:"token" json:"token"`
+	CreatedAt time.Time `bson:"created_at" json:"created_at"`
+	ExpiresAt time.Time `bson:"expires_at" json:"expires_at"`
+	UserAgent string    `bson:"user_agent,omitempty" json:"user_agent,omitempty"`
+	IPAddress string    `bson:"ip_address,omitempty" json:"ip_address,omitempty"`
+	Device    string    `bson:"device,omitempty" json:"device,omitempty"`
+}
+
 // User представляет пользователя в системе
 type User struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
