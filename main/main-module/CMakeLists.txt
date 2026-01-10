@@ -1,50 +1,66 @@
-cmake_minimum_required(VERSION 3.15)
-project(main_module)
+cmake_minimum_required(VERSION 3.10)
+project(main_server)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Для локальной разработки - ищем Crow
-find_package(Crow QUIET)
+message(STATUS "Building main_server (JWT DISABLED - using stub)")
 
-if(NOT Crow_FOUND)
-    message(STATUS "Crow not found, will use local installation")
-    # В Docker будет использоваться vcpkg
-endif()
+# Включите директории
+include_directories(
+    src
+    src/lib/include
+)
 
-# Ищем libpqxx
-find_package(libpqxx REQUIRED)
-
-# Список исходных файлов
-set(SOURCES
+# Исходные файлы
+add_executable(main_server
     src/main.cpp
-    src/server/simple_server.cpp
+    src/handlerRequest.cpp
+    src/handlerFunctions.cpp  # Добавьте эту строку
+    src/postgres.cpp
 )
 
-# Список заголовочных файлов
-set(HEADERS
-    include/utils/config.hpp
-)
+# Базовая конфигурация
+target_link_libraries(main_server pthread)
 
-# Проверяем наличие Crow
-if(Crow_FOUND)
-    message(STATUS "Found Crow: ${Crow_DIR}")
-    add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE Crow::Crow libpqxx::pqxx Threads::Threads)
-else()
-    message(STATUS "Crow not found, building without HTTP server")
-    # Компилируем без Crow для теста
-    add_executable(${PROJECT_NAME} src/main.cpp ${HEADERS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE libpqxx::pqxx Threads::Threads)
+# Для macOS
+if(APPLE)
+    # Попробуем найти libpq для базы данных
+    find_library(PQ_LIB pq
+        PATHS /opt/homebrew/opt/libpq/lib
+              /usr/local/opt/libpq/lib
+        NO_DEFAULT_PATH)
+    
+    if(PQ_LIB)
+        message(STATUS "Found PostgreSQL library: ${PQ_LIB}")
+        target_link_libraries(main_server ${PQ_LIB})
+        
+        # Добавим include директорию для libpq
+        find_path(PQ_INCLUDE_DIR libpq-fe.h
+            PATHS /opt/homebrew/opt/libpq/include
+                  /usr/local/opt/libpq/include)
+        if(PQ_INCLUDE_DIR)
+            target_include_directories(main_server PRIVATE ${PQ_INCLUDE_DIR})
+        endif()
+    else()
+        message(WARNING "PostgreSQL library not found. Database features disabled.")
+    endif()
+    
+    # Отключаем предупреждения
+    target_compile_options(main_server PRIVATE
+        -Wno-deprecated-declarations
+        -Wno-unused-variable
+        -Wno-unused-function
+    )
+    
+    # Пути для линковки
+    target_link_options(main_server PRIVATE
+        -L/opt/homebrew/lib
+        -L/usr/local/lib
+    )
 endif()
 
-# Выходная директория
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+# Флаги для всех платформ
+target_compile_definitions(main_server PRIVATE
+    -DJWT_STUB_MODE
 )
-
-message(STATUS "========================================")
-message(STATUS "Project: ${PROJECT_NAME}")
-message(STATUS "Crow found: ${Crow_FOUND}")
-message(STATUS "========================================")

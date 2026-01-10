@@ -1,108 +1,46 @@
 #include <iostream>
-#include <csignal>
-#include <atomic>
-#include <thread>
-#include <chrono>
+#include "httplib.h"
+#include "handlerFunctions.h"  // Добавьте эту строку
+#include "handlerRequest.h"
 
-// Проверяем, скомпилирован ли Crow
-#ifdef HAS_CROW
-#include "server/simple_server.hpp"
-#endif
-
-#include "utils/config.hpp"
-
-std::atomic<bool> running{true};
-
-void signal_handler(int signal) {
-    std::cout << "\n🛑 Получен сигнал " << signal << ", завершаем работу..." << std::endl;
-    running = false;
-}
-
-int main(int argc, char* argv[]) {
-    // Обработчики сигналов
-    std::signal(SIGINT, signal_handler);
-    std::signal(SIGTERM, signal_handler);
+int main() {
+    std::cout << "=== Starting Server ===" << std::endl;
     
-    std::cout << "========================================" << std::endl;
-    std::cout << "🚀 Главный модуль системы тестирования" << std::endl;
-    std::cout << "Версия: 1.0.0" << std::endl;
-    std::cout << "========================================" << std::endl;
+    // Инициализация базы данных
+    PostgresInit();
     
-    // Загружаем конфигурацию
-    auto& config = Config::get_instance();
-    config.load_from_env();
+    httplib::Server server;
     
-    std::cout << "\n📋 Конфигурация:" << std::endl;
-    config.print();
+    // Простые маршруты
+    server.Get("/", [](const httplib::Request& req, httplib::Response& res) {
+        res.set_content("Hello from server!", "text/plain");
+    });
     
-    int port = 3002;
-    try {
-        port = std::stoi(config.get("server.port", "3002"));
-    } catch (...) {
-        std::cout << "⚠️  Неверный порт, используем 3002" << std::endl;
-    }
+    server.Get("/api/test", handleGetRequest);
+    server.Post("/api/data", handlePostRequest);
     
-    // Запускаем HTTP сервер если есть Crow
-#ifdef HAS_CROW
-    std::cout << "\n🔧 Инициализация HTTP сервера..." << std::endl;
+    server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("{\"status\": \"ok\"}", "application/json");
+    });
     
-    try {
-        SimpleServer server(port);
-        
-        // Запускаем сервер в отдельном потоке
-        std::thread server_thread([&server]() {
-            server.run();
-        });
-        
-        std::cout << "\n✅ Сервер запущен!" << std::endl;
-        std::cout << "🌐 Откройте в браузере: http://localhost:" << port << std::endl;
-        std::cout << "🩺 Health check: http://localhost:" << port << "/health" << std::endl;
-        std::cout << "\nНажмите Ctrl+C для остановки\n" << std::endl;
-        
-        // Главный цикл
-        while (running) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-        
-        std::cout << "\n🛑 Завершение работы..." << std::endl;
-        
-        if (server_thread.joinable()) {
-            server_thread.detach(); // В Crow нет метода stop, завершаем поток
-        }
-        
-    } catch (const std::exception& e) {
-        std::cerr << "❌ Ошибка запуска HTTP сервера: " << e.what() << std::endl;
-        std::cerr << "Запускаем в режиме без HTTP..." << std::endl;
-        
-        // Режим без HTTP
-        std::cout << "\n▶️  Работаем без HTTP сервера" << std::endl;
-        std::cout << "Нажмите Ctrl+C для остановки\n" << std::endl;
-        
-        int counter = 0;
-        while (running) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            counter++;
-            if (counter % 10 == 0) {
-                std::cout << "⏱️  Работаем " << counter << " секунд" << std::endl;
-            }
-        }
-    }
-#else
-    std::cout << "\n⚠️  Crow не найден, работаем без HTTP сервера" << std::endl;
-    std::cout << "▶️  Эмуляция работы сервера..." << std::endl;
-    std::cout << "Нажмите Ctrl+C для остановки\n" << std::endl;
+    // Обработчик несовпадающих запросов
+    server.set_error_handler(handle_unmatched_request);
     
-    int counter = 0;
-    while (running) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        counter++;
-        if (counter % 5 == 0) {
-            std::cout << "⏱️  Работаем " << counter << " секунд" << std::endl;
-            std::cout << "📡 Порт: " << port << " (не используется)" << std::endl;
-        }
-    }
-#endif
+    // API для работы с пользователями
+    server.Post("/api/db/addUser", AddUser);    // добавляет нового пользователя в бд после регистрации
+    server.Get("/api/db/users", GetUserList);    // Посмотреть список пользователей
+    server.Get(R"(/api/db/users/(\d+)/name)", GetUserNamea);    // Посмотреть информацию о пользователе (ФИО)
+    server.Put(R"(/api/db/users/(\d+)/name)", SetUserName);    // Изменить ФИО пользователя
+    server.Get(R"(/api/db/users/(\d+)/courses)", GetUserCourses);    // Посмотреть информацию о пользователе (курсы)
+    server.Get(R"(/api/db/users/(\d+)/grades)", GetUserGrades);    // Посмотреть информацию о пользователе (оценки)
+    server.Get(R"(/api/db/users/(\d+)/tests)", GetUserTests);    // Посмотреть информацию о пользователе (тесты)
+    server.Get(R"(/api/db/users/(\d+)/roles)", GetUserRoles);    // Посмотреть информацию о пользователе (роли)
+    server.Put(R"(/api/db/users/(\d+)/roles)", SetUserRoles);    // Изменить роли пользователя
     
-    std::cout << "\n✅ Работа завершена" << std::endl;
+    std::cout << "Server listening on http://localhost:8080" << std::endl;
+    std::cout << "Press Ctrl+C to stop" << std::endl;
+    
+    server.listen("0.0.0.0", 8080);
+    
     return 0;
 }
