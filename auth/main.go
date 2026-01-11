@@ -77,7 +77,7 @@ func main() {
 	setupRoutes(router, authHandler)
 
 	// 8. Настраиваем статические файлы
-	router.LoadHTMLGlob("web/templates/*")
+	//router.LoadHTMLGlob("web/templates/*")
 	router.Static("/static", "./web/static")
 
 	// 9. Запускаем сервер
@@ -160,9 +160,9 @@ func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler) {
 			auth.GET("/yandex/callback", handler.OAuthCallback)
 
 			// HTML страницы
-			auth.GET("/success", func(c *gin.Context) {
-				c.HTML(http.StatusOK, "success.html", nil)
-			})
+			//auth.GET("/success", func(c *gin.Context) {
+			//	c.HTML(http.StatusOK, "success.html", nil)
+			//})
 
 			auth.GET("/error", func(c *gin.Context) {
 				errorMsg := c.Query("error")
