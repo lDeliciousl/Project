@@ -3,6 +3,7 @@ project(main_server)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 message(STATUS "Building main_server (JWT DISABLED - using stub)")
 
@@ -12,55 +13,97 @@ include_directories(
     src/lib/include
 )
 
-# Исходные файлы
+# ============================================================================
+# ИСХОДНЫЕ ФАЙЛЫ (одинаковые для всех платформ)
+# ============================================================================
 add_executable(main_server
     src/main.cpp
     src/handlerRequest.cpp
-    src/handlerFunctions.cpp  # Добавьте эту строку
-    src/postgres.cpp
+    src/handlerFunctions.cpp
+    # src/postgres.cpp - ПОКА НЕ ДОБАВЛЯЕМ, чтобы избежать ошибок на Windows
 )
 
-# Базовая конфигурация
-target_link_libraries(main_server pthread)
-
-# Для macOS
+# ============================================================================
+# КОНФИГУРАЦИЯ ДЛЯ macOS
+# ============================================================================
 if(APPLE)
-    # Попробуем найти libpq для базы данных
+    message(STATUS "Configuring for macOS")
+    
+    # Поиск PostgreSQL (предполагаем установку через Homebrew)
     find_library(PQ_LIB pq
         PATHS /opt/homebrew/opt/libpq/lib
               /usr/local/opt/libpq/lib
         NO_DEFAULT_PATH)
     
+    # Если нашли PostgreSQL - подключаем его и добавляем postgres.cpp
     if(PQ_LIB)
         message(STATUS "Found PostgreSQL library: ${PQ_LIB}")
+        
+        # Добавляем postgres.cpp ТОЛЬКО если есть PostgreSQL
+        target_sources(main_server PRIVATE src/postgres.cpp)
+        
+        # Подключаем библиотеку
         target_link_libraries(main_server ${PQ_LIB})
         
-        # Добавим include директорию для libpq
+        # Ищем заголовочные файлы
         find_path(PQ_INCLUDE_DIR libpq-fe.h
             PATHS /opt/homebrew/opt/libpq/include
                   /usr/local/opt/libpq/include)
+        
         if(PQ_INCLUDE_DIR)
             target_include_directories(main_server PRIVATE ${PQ_INCLUDE_DIR})
         endif()
+        
+        # Флаг что PostgreSQL доступен
+        target_compile_definitions(main_server PRIVATE -DHAVE_POSTGRESQL)
     else()
-        message(WARNING "PostgreSQL library not found. Database features disabled.")
+        message(WARNING "PostgreSQL library not found on macOS. Database features disabled.")
     endif()
     
-    # Отключаем предупреждения
+    # Настройки компиляции для macOS
+    target_link_libraries(main_server pthread)
     target_compile_options(main_server PRIVATE
         -Wno-deprecated-declarations
         -Wno-unused-variable
         -Wno-unused-function
     )
     
-    # Пути для линковки
-    target_link_options(main_server PRIVATE
-        -L/opt/homebrew/lib
-        -L/usr/local/lib
-    )
+# ============================================================================
+# КОНФИГУРАЦИЯ ДЛЯ WINDOWS
+# ============================================================================
+elseif(WIN32)
+    message(STATUS "Configuring for Windows")
+    
+    # НЕ добавляем postgres.cpp на Windows (пока используем заглушку)
+    # target_sources(main_server PRIVATE src/postgres.cpp) - ЗАКОММЕНТИРОВАНО
+    
+    # Системные библиотеки Windows
+    target_link_libraries(main_server ws2_32 advapi32)
+    
+    # Настройки компиляции для MSVC
+    if(MSVC)
+        target_compile_options(main_server PRIVATE
+            /W4
+            /EHsc
+            /wd4100  # Неиспользуемый параметр
+            /wd4996  # Небезопасные функции
+        )
+    endif()
+    
+    # Флаг заглушки для Windows
+    target_compile_definitions(main_server PRIVATE -DNO_POSTGRESQL_WINDOWS)
 endif()
 
-# Флаги для всех платформ
+# ============================================================================
+# ОБЩИЕ НАСТРОЙКИ ДЛЯ ВСЕХ ПЛАТФОРМ
+# ============================================================================
 target_compile_definitions(main_server PRIVATE
     -DJWT_STUB_MODE
+)
+
+# Настройка свойств
+set_target_properties(main_server PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
 )
