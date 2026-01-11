@@ -11,6 +11,12 @@ services:
       - mongo_data:/data/db
     networks:
       - auth-network
+    healthcheck:
+          test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -22,13 +28,18 @@ services:
       - redis_data:/data
     networks:
       - auth-network
+    healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
 
   auth-module:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: auth-module
-    restart: unless-stopped
+    restart: on-failure:3
     ports:
       - "8001:8001"
     environment:
@@ -42,10 +53,15 @@ services:
       - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
       - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
     depends_on:
-      - mongo
-      - redis
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - auth-network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     
 
 volumes:
