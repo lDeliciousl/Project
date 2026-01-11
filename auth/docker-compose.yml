@@ -12,12 +12,12 @@ services:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongo:27017/auth
       - REDIS_URL=redis://redis:6379/0
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID}
-      - YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET}
-      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - GITHUB_CLIENT_ID=Ov23li79xHWsMb7icgLS
+      - GITHUB_CLIENT_SECRET=449c98d9df4dc33dc9f25dd31f2af50ccd95c1f4
+      - YANDEX_CLIENT_ID=bfe57c2fadb5472c888a6f7c299bc29a
+      - YANDEX_CLIENT_SECRET=7a49fc5b5d09484a8b45108ae371cd5b
+      - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
+      - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
     depends_on:
       mongo:
         condition: service_healthy  # Ждем готовности MongoDB
