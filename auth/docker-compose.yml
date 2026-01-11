@@ -1,9 +1,32 @@
 version: '3.8'
 
 services:
-  # Наш модуль авторизации
+  mongo:
+    image: mongo:6
+    container_name: auth-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - auth-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - auth-network
+
   auth-module:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: auth-module
     restart: unless-stopped
     ports:
@@ -19,55 +42,15 @@ services:
       - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
       - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
     depends_on:
-      mongo:
-        condition: service_healthy  # Ждем готовности MongoDB
-      redis:
-        condition: service_healthy  # Ждем готовности Redis
+      - mongo
+      - redis
     networks:
       - auth-network
-    volumes:
-      - ./:/app
-      - go-mod-cache:/go/pkg/mod
-    command: go run main.go
-
-  # MongoDB
-  mongo:
-    image: mongo:6
-    container_name: auth-mongo
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - auth-network
-    healthcheck:  # Добавьте healthcheck
-        test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-
-  # Redis
-  redis:
-    image: redis:7-alpine
-    container_name: auth-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - auth-network
-    healthcheck:
-        test: ["CMD", "redis-cli", "ping"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
+    
 
 volumes:
   mongo_data:
   redis_data:
-  go-mod-cache:
 
 networks:
   auth-network:
