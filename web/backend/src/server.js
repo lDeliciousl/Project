@@ -67,9 +67,9 @@ app.listen(PORT, () => {
   console.log('⚠️  РЕЖИМ: Заглушки (MOCK)');
   console.log('='.repeat(60));
   console.log('\n🔗 Доступные маршруты:');
-  console.log('  • http://localhost:3000/ - Главная страница');
-  console.log('  • http://localhost:3000/mock/quick-login - Быстрый вход');
-  console.log('  • http://localhost:3000/mock/session-info - Информация о сессии');
-  console.log('  • http://localhost:3000/api/test-redis - Тест Redis');
+  console.log('  • http://localhost:8000/ - Главная страница');
+  console.log('  • http://localhost:8000/mock/quick-login - Быстрый вход');
+  console.log('  • http://localhost:8000/mock/session-info - Информация о сессии');
+  console.log('  • http://localhost:8000/api/test-redis - Тест Redis');
   console.log('='.repeat(60));
 });
