@@ -71,7 +71,7 @@ func Load() error {
 
 	AppConfig = &Config{
 		Server: ServerConfig{
-			Port:         getEnv("PORT", "3001"),
+			Port:         getEnv("PORT", "8001"),
 			Host:         getEnv("HOST", "0.0.0.0"),
 			ReadTimeout:  getEnvAsDuration("READ_TIMEOUT", 10*time.Second),
 			WriteTimeout: getEnvAsDuration("WRITE_TIMEOUT", 10*time.Second),
@@ -96,12 +96,12 @@ func Load() error {
 			GitHub: GitHubConfig{
 				ClientID:     getEnv("GITHUB_CLIENT_ID", ""),
 				ClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
-				RedirectURL:  getEnv("GITHUB_REDIRECT_URL", "http://localhost:3001/api/auth/github/callback"),
+				RedirectURL:  getEnv("GITHUB_REDIRECT_URL", "http://localhost:8001/api/auth/github/callback"),
 			},
 			Yandex: YandexConfig{
 				ClientID:     getEnv("YANDEX_CLIENT_ID", ""),
 				ClientSecret: getEnv("YANDEX_CLIENT_SECRET", ""),
-				RedirectURL:  getEnv("YANDEX_REDIRECT_URL", "http://localhost:3001/api/auth/yandex/callback"),
+				RedirectURL:  getEnv("YANDEX_REDIRECT_URL", "http://localhost:8001/api/auth/yandex/callback"),
 			},
 		},
 	}

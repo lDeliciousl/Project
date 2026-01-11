@@ -78,7 +78,7 @@ func main() {
 
 	// 8. Настраиваем статические файлы
 	//router.LoadHTMLGlob("web/templates/*")
-	router.Static("/static", "./web/static")
+	//router.Static("/static", "./web/static")
 
 	// 9. Запускаем сервер
 	server := &http.Server{
