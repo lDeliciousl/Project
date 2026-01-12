@@ -61,3 +61,9 @@ void handlePostRequest(const httplib::Request& req, httplib::Response& res);
 
 // Пример обработчика, который парсит JSON-тело запроса (создание попытки теста)
 void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& res);
+
+// Новые обработчики для тестов
+void CreateTestHandler(const httplib::Request& req, httplib::Response& res);
+void AddQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res);
+void GetTestsHandler(const httplib::Request& req, httplib::Response& res);

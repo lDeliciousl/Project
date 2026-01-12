@@ -235,19 +235,11 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
     auto permission = CheckToken(req);
     if (Unauthorized(res, permission)) return;
 
-    // Например, разрешение \"pass_test\"
+    // Например, разрешение "pass_test"
     if (!CheckAccess(permission, "pass_test", res)) return;
 
     try {
         // 2) Разбираем JSON-тело запроса
-        // Ожидаем формат:
-        // {
-        //   "test_id": "uuid",
-        //   "user_id": "uuid",
-        //   "answers": [
-        //     { "question_id": "uuid", "option_id": "uuid" }
-        //   ]
-        // }
         nlohmann::json body = nlohmann::json::parse(req.body);
 
         std::string test_id  = body.at("test_id").get<std::string>();
@@ -318,4 +310,154 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
         res.status = 500;
         res.set_content("{\"error\": \"Internal server error\"}", "application/json");
     }
+}
+
+// ============================================================================
+// НОВЫЕ ОБРАБОТЧИКИ
+// ============================================================================
+
+void CreateTestHandler(const httplib::Request& req, httplib::Response& res) {
+    auto permission = CheckToken(req);
+    if (Unauthorized(res, permission)) return;
+    
+    // Check if user is teacher/admin (stub check)
+    if (!CheckAccess(permission, "create_test", res)) return;
+
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        std::string name = body.at("name").get<std::string>();
+        std::string desc = body.value("description", "");
+        std::string course_id = body.at("course_id").get<std::string>();
+        std::string created_by = body.at("created_by").get<std::string>();
+
+        Database& db = Database::get_instance();
+        std::string id = db.create_test(name, desc, course_id, created_by);
+        
+        if (id.empty()) {
+            res.status = 500;
+            res.set_content("{\"error\": \"Failed to create test\"}", "application/json");
+        } else {
+            res.status = 201;
+            nlohmann::json response;
+            response["status"] = "success";
+            response["id"] = id;
+            res.set_content(response.dump(), "application/json");
+        }
+    } catch (const std::exception& e) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+    }
+}
+
+void AddQuestionHandler(const httplib::Request& req, httplib::Response& res) {
+    auto permission = CheckToken(req);
+    if (Unauthorized(res, permission)) return;
+    
+    // Extract test_id from path
+    std::string test_id = matchToString(req.matches, 1);
+    
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        std::string text = body.at("text").get<std::string>();
+        std::string type = body.value("type", "single_choice");
+        int points = body.value("points", 1);
+        
+        Database& db = Database::get_instance();
+        std::string q_id = db.add_question(test_id, text, type, points);
+        
+        if (q_id.empty()) {
+            res.status = 500;
+            res.set_content("{\"error\": \"Failed to add question\"}", "application/json");
+            return;
+        }
+
+        // Add options if present
+        if (body.contains("options") && body["options"].is_array()) {
+            for (const auto& opt : body["options"]) {
+                std::string opt_text = opt.at("text").get<std::string>();
+                bool is_correct = opt.value("is_correct", false);
+                db.add_option(q_id, opt_text, is_correct);
+            }
+        }
+        
+        res.status = 201;
+        nlohmann::json response;
+        response["status"] = "success";
+        response["id"] = q_id;
+        res.set_content(response.dump(), "application/json");
+        
+    } catch (const std::exception& e) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+    }
+}
+
+void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res) {
+    // Auth check optional? Usually need to be logged in.
+    auto permission = CheckToken(req);
+    if (Unauthorized(res, permission)) return;
+
+    std::string test_id = matchToString(req.matches, 1);
+    Database& db = Database::get_instance();
+    Test test = db.get_test_details(test_id);
+    
+    if (test.id.empty()) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Test not found\"}", "application/json");
+        return;
+    }
+    
+    nlohmann::json response;
+    response["id"] = test.id;
+    response["name"] = test.name;
+    response["description"] = test.description;
+    response["course_id"] = test.course_id;
+    response["created_by"] = test.created_by;
+    
+    nlohmann::json questions = nlohmann::json::array();
+    for (const auto& q : test.questions) {
+        nlohmann::json q_json;
+        q_json["id"] = q.id;
+        q_json["text"] = q.text;
+        q_json["type"] = q.type;
+        q_json["points"] = q.points;
+        
+        nlohmann::json options = nlohmann::json::array();
+        for (const auto& opt : q.options) {
+            nlohmann::json opt_json;
+            opt_json["id"] = opt.id;
+            opt_json["text"] = opt.text;
+            opt_json["is_correct"] = opt.is_correct; 
+            options.push_back(opt_json);
+        }
+        q_json["options"] = options;
+        questions.push_back(q_json);
+    }
+    response["questions"] = questions;
+    
+    res.set_content(response.dump(), "application/json");
+}
+
+void GetTestsHandler(const httplib::Request& req, httplib::Response& res) {
+    auto permission = CheckToken(req);
+    if (Unauthorized(res, permission)) return;
+
+    Database& db = Database::get_instance();
+    std::vector<Test> tests = db.get_all_tests();
+    
+    nlohmann::json response;
+    nlohmann::json tests_arr = nlohmann::json::array();
+    
+    for (const auto& t : tests) {
+        nlohmann::json t_json;
+        t_json["id"] = t.id;
+        t_json["name"] = t.name;
+        t_json["description"] = t.description;
+        t_json["course_id"] = t.course_id;
+        t_json["created_by"] = t.created_by;
+        tests_arr.push_back(t_json);
+    }
+    response["tests"] = tests_arr;
+    
+    res.set_content(response.dump(), "application/json");
 }

@@ -242,6 +242,143 @@ int Database::count_correct_answers(const std::string& attempt_id) {
     return count;
 }
 
+// ============================================================================
+// НОВЫЕ МЕТОДЫ
+// ============================================================================
+
+std::string Database::create_test(const std::string& name, const std::string& description, const std::string& course_id, const std::string& created_by) {
+    if (!pImpl->connection) return "";
+    
+    std::stringstream query;
+    query << "INSERT INTO tests (name, description, course_id, created_by) VALUES ('"
+          << name << "', '" << description << "', '" << course_id << "', '" << created_by << "') RETURNING id";
+          
+    PGresult* result = PQexec(pImpl->connection, query.str().c_str());
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        std::cerr << "[ERROR] create_test failed: " << PQerrorMessage(pImpl->connection) << std::endl;
+        PQclear(result);
+        return "";
+    }
+    
+    std::string id = PQgetvalue(result, 0, 0);
+    PQclear(result);
+    return id;
+}
+
+std::string Database::add_question(const std::string& test_id, const std::string& text, const std::string& type, int points) {
+    if (!pImpl->connection) return "";
+    
+    std::stringstream query;
+    query << "INSERT INTO questions (test_id, text, question_type, points) VALUES ('"
+          << test_id << "', '" << text << "', '" << type << "', " << points << ") RETURNING id";
+          
+    PGresult* result = PQexec(pImpl->connection, query.str().c_str());
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        std::cerr << "[ERROR] add_question failed: " << PQerrorMessage(pImpl->connection) << std::endl;
+        PQclear(result);
+        return "";
+    }
+    
+    std::string id = PQgetvalue(result, 0, 0);
+    PQclear(result);
+    return id;
+}
+
+std::string Database::add_option(const std::string& question_id, const std::string& text, bool is_correct) {
+    if (!pImpl->connection) return "";
+    
+    std::stringstream query;
+    query << "INSERT INTO question_options (question_id, text, is_correct) VALUES ('"
+          << question_id << "', '" << text << "', " << (is_correct ? "TRUE" : "FALSE") << ") RETURNING id";
+          
+    PGresult* result = PQexec(pImpl->connection, query.str().c_str());
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        std::cerr << "[ERROR] add_option failed: " << PQerrorMessage(pImpl->connection) << std::endl;
+        PQclear(result);
+        return "";
+    }
+    
+    std::string id = PQgetvalue(result, 0, 0);
+    PQclear(result);
+    return id;
+}
+
+Test Database::get_test_details(const std::string& test_id) {
+    Test test;
+    if (!pImpl->connection) return test;
+    
+    // 1. Get Test Info
+    std::stringstream testQuery;
+    testQuery << "SELECT id, name, description, course_id, created_by FROM tests WHERE id = '" << test_id << "'";
+    PGresult* resTest = PQexec(pImpl->connection, testQuery.str().c_str());
+    
+    if (PQresultStatus(resTest) == PGRES_TUPLES_OK && PQntuples(resTest) > 0) {
+        test.id = PQgetvalue(resTest, 0, 0);
+        test.name = PQgetvalue(resTest, 0, 1);
+        test.description = PQgetvalue(resTest, 0, 2);
+        test.course_id = PQgetvalue(resTest, 0, 3);
+        test.created_by = PQgetvalue(resTest, 0, 4);
+    } else {
+        PQclear(resTest);
+        return test;
+    }
+    PQclear(resTest);
+    
+    // 2. Get Questions
+    std::stringstream qQuery;
+    qQuery << "SELECT id, text, question_type, points FROM questions WHERE test_id = '" << test_id << "' ORDER BY order_number, created_at";
+    PGresult* resQ = PQexec(pImpl->connection, qQuery.str().c_str());
+    
+    int qCount = PQntuples(resQ);
+    for (int i = 0; i < qCount; ++i) {
+        Question q;
+        q.id = PQgetvalue(resQ, i, 0);
+        q.text = PQgetvalue(resQ, i, 1);
+        q.type = PQgetvalue(resQ, i, 2);
+        q.points = std::stoi(PQgetvalue(resQ, i, 3));
+        
+        // 3. Get Options for each question
+        std::stringstream optQuery;
+        optQuery << "SELECT id, text, is_correct FROM question_options WHERE question_id = '" << q.id << "' ORDER BY order_number, id";
+        PGresult* resOpt = PQexec(pImpl->connection, optQuery.str().c_str());
+        
+        int optCount = PQntuples(resOpt);
+        for (int j = 0; j < optCount; ++j) {
+            QuestionOption opt;
+            opt.id = PQgetvalue(resOpt, j, 0);
+            opt.text = PQgetvalue(resOpt, j, 1);
+            opt.is_correct = (PQgetvalue(resOpt, j, 2)[0] == 't');
+            q.options.push_back(opt);
+        }
+        PQclear(resOpt);
+        
+        test.questions.push_back(q);
+    }
+    PQclear(resQ);
+    
+    return test;
+}
+
+std::vector<Test> Database::get_all_tests() {
+    std::vector<Test> tests;
+    if (!pImpl->connection) return tests;
+    
+    PGresult* res = PQexec(pImpl->connection, "SELECT id, name, description, course_id, created_by FROM tests ORDER BY created_at DESC");
+    
+    int count = PQntuples(res);
+    for (int i = 0; i < count; ++i) {
+        Test t;
+        t.id = PQgetvalue(res, i, 0);
+        t.name = PQgetvalue(res, i, 1);
+        t.description = PQgetvalue(res, i, 2);
+        t.course_id = PQgetvalue(res, i, 3);
+        t.created_by = PQgetvalue(res, i, 4);
+        tests.push_back(t);
+    }
+    PQclear(res);
+    return tests;
+}
+
 // Старые функции для совместимости
 void initDatabase() {
     setConsoleEncoding();
