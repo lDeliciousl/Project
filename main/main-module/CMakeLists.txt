@@ -69,6 +69,40 @@ if(APPLE)
     )
     
 # ============================================================================
+# КОНФИГУРАЦИЯ ДЛЯ LINUX (Docker)
+# ============================================================================
+elseif(UNIX AND NOT APPLE)
+    message(STATUS "Configuring for Linux")
+    
+    # Поиск PostgreSQL на Linux (стандартные пути)
+    find_package(PostgreSQL)
+    
+    if(PostgreSQL_FOUND)
+        message(STATUS "Found PostgreSQL library")
+        
+        # Добавляем postgres.cpp
+        target_sources(main_server PRIVATE src/postgres.cpp)
+        
+        # Подключаем библиотеку
+        target_link_libraries(main_server ${PostgreSQL_LIBRARIES})
+        target_include_directories(main_server PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+        
+        # Флаг что PostgreSQL доступен
+        target_compile_definitions(main_server PRIVATE -DHAVE_POSTGRESQL)
+    else()
+        message(WARNING "PostgreSQL library not found on Linux. Database features disabled.")
+    endif()
+    
+    # Настройки компиляции для Linux
+    target_link_libraries(main_server pthread)
+    target_compile_options(main_server PRIVATE
+        -Wall
+        -Wextra
+        -Wno-unused-variable
+        -Wno-unused-function
+    )
+    
+# ============================================================================
 # КОНФИГУРАЦИЯ ДЛЯ WINDOWS
 # ============================================================================
 elseif(WIN32)
