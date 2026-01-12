@@ -1,14 +1,24 @@
 #include <iostream>
 #include <httplib.h>
 #include "handlerRequest.h"
+#include "postgres.h"
+#include "../include/utils/config.hpp"
 
 // Инициализация базы данных
 void PostgresInit() {
     std::cout << "[DB] Initializing database..." << std::endl;
     SetConsoleOutputCP(65001);  // UTF-8
     
-    // Здесь могла бы быть реальная инициализация базы данных
-    std::cout << "[DB] Database initialized (stub mode)" << std::endl;
+    // Загружаем конфигурацию если еще не загружена
+    Config& config = Config::get_instance();
+    if (!config.is_loaded()) {
+        config.load_from_env();
+    }
+    
+    // Подключаемся к базе данных через singleton (подключение происходит внутри get_instance)
+    Database& db = Database::get_instance();
+    
+    std::cout << "[DB] ✅ Database initialization completed" << std::endl;
 }
 
 // Обработчик несовпадающих запросов

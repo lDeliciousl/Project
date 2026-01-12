@@ -1,4 +1,5 @@
 #include "handlerRequest.h"
+#include "postgres.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -252,34 +253,69 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
         std::string test_id  = body.at("test_id").get<std::string>();
         std::string user_id  = body.at("user_id").get<std::string>();
 
-        // answers мы пока просто считаем, без сохранения в БД
-        size_t answers_count = 0;
-        if (body.contains("answers") && body["answers"].is_array()) {
-            answers_count = body["answers"].size();
+        // 3) Получаем экземпляр БД и создаем попытку теста
+        Database& db = Database::get_instance();
+        std::string attempt_id = db.create_test_attempt(test_id, user_id);
+        
+        if (attempt_id.empty()) {
+            res.status = 500;
+            res.set_content("{\"error\": \"Failed to create test attempt\"}", "application/json");
+            return;
         }
 
-        std::cout << "[CreateTestAttemptHandler] test_id=" << test_id
-                  << " user_id=" << user_id
-                  << " answers=" << answers_count << std::endl;
+        // 4) Сохраняем ответы если они есть
+        std::vector<Answer> answers;
+        if (body.contains("answers") && body["answers"].is_array()) {
+            for (const auto& answer_json : body["answers"]) {
+                Answer answer;
+                answer.question_id = answer_json.at("question_id").get<std::string>();
+                answer.option_id = answer_json.at("option_id").get<std::string>();
+                answers.push_back(answer);
+            }
+            
+            if (!answers.empty()) {
+                if (!db.save_attempt_answers(attempt_id, answers)) {
+                    std::cerr << "[CreateTestAttemptHandler] Warning: Failed to save some answers" << std::endl;
+                }
+            }
+        }
 
-        // 3) Здесь позже будет реальная работа с БД:
-        //  - создать попытку теста
-        //  - записать ответы
-        //  - посчитать результат
+        // 5) Подсчитываем результат - считаем правильные ответы из БД
+        int correct_count = 0;
+        int total_count = answers.size();
+        
+        if (!answers.empty()) {
+            // Подсчитываем правильные ответы из БД
+            correct_count = db.count_correct_answers(attempt_id);
+            
+            // Подсчитываем максимальный балл (упрощенно - по количеству вопросов)
+            int max_score = total_count;
+            db.finish_test_attempt(attempt_id, correct_count, max_score);
+        }
 
-        // 4) Формируем JSON-ответ
+        std::cout << "[CreateTestAttemptHandler] Created attempt: " << attempt_id
+                  << " with " << answers.size() << " answers" << std::endl;
+
+        // 7) Формируем JSON-ответ
         nlohmann::json resp;
         resp["status"] = "success";
-        resp["message"] = "Test attempt created (stub)";
+        resp["message"] = "Test attempt created successfully";
+        resp["attempt_id"] = attempt_id;
         resp["test_id"] = test_id;
         resp["user_id"] = user_id;
-        resp["answers_count"] = answers_count;
+        resp["answers_count"] = answers.size();
+        resp["score"] = correct_count;
+        resp["max_score"] = total_count;
 
         res.status = 201;
         res.set_content(resp.dump(), "application/json");
+    } catch (const nlohmann::json::exception& ex) {
+        std::cerr << "[CreateTestAttemptHandler] JSON Error: " << ex.what() << std::endl;
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid JSON body: " + std::string(ex.what()) + "\"}", "application/json");
     } catch (const std::exception& ex) {
         std::cerr << "[CreateTestAttemptHandler] Error: " << ex.what() << std::endl;
-        res.status = 400;
-        res.set_content("{\"error\": \"Invalid JSON body\"}", "application/json");
+        res.status = 500;
+        res.set_content("{\"error\": \"Internal server error\"}", "application/json");
     }
 }
