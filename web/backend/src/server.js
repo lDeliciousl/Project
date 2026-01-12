@@ -58,18 +58,50 @@ app.use((err, req, res, next) => {
 
 // Запуск сервера
 app.listen(PORT, () => {
-  console.log('='.repeat(60));
-  console.log('🌐 ВЕБ-МОДУЛЬ СИСТЕМЫ ТЕСТИРОВАНИЯ');
-  console.log('='.repeat(60));
-  console.log(`✅ Сервер запущен на порту: ${PORT}`);
-  console.log(`📡 Внутри Docker: http://web-backend:${PORT}`);
-  console.log(`🔗 Через Nginx: http://localhost:8080`);
-  console.log('⚠️  РЕЖИМ: Заглушки (MOCK)');
-  console.log('='.repeat(60));
-  console.log('\n🔗 Доступные маршруты:');
-  console.log('  • http://localhost:8000/ - Главная страница');
-  console.log('  • http://localhost:8000/mock/quick-login - Быстрый вход');
-  console.log('  • http://localhost:8000/mock/session-info - Информация о сессии');
-  console.log('  • http://localhost:8000/api/test-redis - Тест Redis');
-  console.log('='.repeat(60));
+  // Проверка подключения к main модулю
+  const mainApiClient = require('./utils/mainApiClient');
+  mainApiClient.healthCheck().then(health => {
+    console.log('='.repeat(60));
+    console.log('🌐 ВЕБ-МОДУЛЬ СИСТЕМЫ ТЕСТИРОВАНИЯ');
+    console.log('='.repeat(60));
+    console.log(`✅ Сервер запущен на порту: ${PORT}`);
+    console.log(`📡 Внутри Docker: http://web-backend:${PORT}`);
+    console.log(`🔗 Через Nginx: http://localhost:8000`);
+    console.log('='.repeat(60));
+    console.log('\n🔌 Подключение к Main модулю:');
+    if (health.status === 'ok') {
+      console.log('  ✅ Main модуль доступен');
+    } else {
+      console.log('  ⚠️  Main модуль недоступен:', health.message || 'Неизвестная ошибка');
+    }
+    console.log('='.repeat(60));
+    console.log('\n🔗 Доступные маршруты:');
+    console.log('  • http://localhost:8000/ - Главная страница');
+    console.log('  • http://localhost:8000/api/health - Проверка здоровья API');
+    console.log('  • http://localhost:8000/api/main-health - Проверка подключения к Main модулю');
+    console.log('  • http://localhost:8000/mock/quick-login - Быстрый вход (тест)');
+    console.log('  • http://localhost:8000/mock/session-info - Информация о сессии');
+    console.log('  • http://localhost:8000/api/test-redis - Тест Redis');
+    console.log('='.repeat(60));
+  }).catch(err => {
+    console.log('='.repeat(60));
+    console.log('🌐 ВЕБ-МОДУЛЬ СИСТЕМЫ ТЕСТИРОВАНИЯ');
+    console.log('='.repeat(60));
+    console.log(`✅ Сервер запущен на порту: ${PORT}`);
+    console.log(`📡 Внутри Docker: http://web-backend:${PORT}`);
+    console.log(`🔗 Через Nginx: http://localhost:8000`);
+    console.log('='.repeat(60));
+    console.log('\n🔌 Подключение к Main модулю:');
+    console.log('  ❌ Main модуль недоступен:', err.message);
+    console.log('  ⚠️  Некоторые функции могут быть недоступны');
+    console.log('='.repeat(60));
+    console.log('\n🔗 Доступные маршруты:');
+    console.log('  • http://localhost:8000/ - Главная страница');
+    console.log('  • http://localhost:8000/api/health - Проверка здоровья API');
+    console.log('  • http://localhost:8000/api/main-health - Проверка подключения к Main модулю');
+    console.log('  • http://localhost:8000/mock/quick-login - Быстрый вход (тест)');
+    console.log('  • http://localhost:8000/mock/session-info - Информация о сессии');
+    console.log('  • http://localhost:8000/api/test-redis - Тест Redis');
+    console.log('='.repeat(60));
+  });
 });

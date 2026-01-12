@@ -12,6 +12,23 @@ services:
     networks:
       - testing-network
 
+  web-redis:
+    image: redis:7-alpine
+    container_name: testing-web-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - testing-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   web-backend:
     build: ./web/backend
     deploy:
@@ -20,16 +37,23 @@ services:
       - REDIS_HOST=web-redis
       - REDIS_PORT=6379
       - PORT=3000
+      - MAIN_MODULE_URL=http://main-module:3002
+      - MAIN_MODULE_TIMEOUT=5000
+      - NODE_ENV=production
     depends_on:
-      - web-redis
+      web-redis:
+        condition: service_healthy
+      main-module:
+        condition: service_started
     networks:
       - testing-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  web-redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
   main-postgres:
     image: postgres:15-alpine
     container_name: testing-main-postgres
@@ -43,13 +67,13 @@ services:
     volumes:
       - main_postgres_data:/var/lib/postgresql/data
       - ./main/main-module/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - testing-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U main_module -d testing_system"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - testing-network
 
   main-module:
     build:
@@ -67,13 +91,20 @@ services:
       DB_PASSWORD: secret123
       SERVER_PORT: 3002
       JWT_SECRET: test_secret
+      NODE_ENV: production
     depends_on:
       main-postgres:
         condition: service_healthy
-    stdin_open: true
-    tty: true
     networks:
       - testing-network
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/api/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 networks:
   testing-network:

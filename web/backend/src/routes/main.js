@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const mainApiClient = require('../utils/mainApiClient');
 
 // Главная страница
 router.get('/', async (req, res) => {
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   
   console.log(`[MAIN] Статус пользователя: ${userStatus}`);
   
-  // Фиктивные курсы для демонстрации
+  // Фиктивные курсы для демонстрации (fallback)
   const mockCourses = [
     {
       id: 'course_1',
@@ -81,16 +82,75 @@ router.get('/', async (req, res) => {
       break;
       
     case 'authenticated':
-      // Показываем личный кабинет с фиктивными данными
-      res.render('dashboard', {
-        title: 'Личный кабинет',
-        user: sessionData?.userData || { 
+      // Показываем личный кабинет с реальными данными из main модуля
+      try {
+        const user = sessionData?.userData || { 
           name: 'Пользователь', 
           email: 'unknown@example.com',
           roles: ['student']
-        },
-        courses: mockCourses.filter(c => c.enrolled)
-      });
+        };
+        
+        let courses = [];
+        let userInfo = null;
+        
+        // Получаем данные пользователя из main модуля
+        if (user.id) {
+          try {
+            // Получаем курсы пользователя
+            const coursesData = await mainApiClient.getUserCourses(user.id);
+            if (coursesData && Array.isArray(coursesData)) {
+              courses = coursesData;
+            } else if (coursesData && coursesData.courses) {
+              courses = coursesData.courses;
+            }
+            
+            // Получаем дополнительную информацию о пользователе
+            try {
+              const userName = await mainApiClient.getUserName(user.id);
+              if (userName && userName.name) {
+                user.name = userName.name;
+              }
+            } catch (err) {
+              console.warn(`[MAIN] Не удалось получить имя пользователя ${user.id}:`, err.message);
+            }
+            
+            // Получаем тесты пользователя для отображения в курсах
+            try {
+              const userTests = await mainApiClient.getUserTests(user.id);
+              // Можно использовать для обогащения данных курсов
+            } catch (err) {
+              console.warn(`[MAIN] Не удалось получить тесты пользователя ${user.id}:`, err.message);
+            }
+          } catch (err) {
+            console.error(`[MAIN] Ошибка при получении данных пользователя ${user.id}:`, err.message);
+            // Используем fallback данные
+            courses = mockCourses.filter(c => c.enrolled);
+          }
+        } else {
+          // Если нет ID пользователя, используем mock данные
+          console.warn('[MAIN] Нет ID пользователя в sessionData, используем mock данные');
+          courses = mockCourses.filter(c => c.enrolled);
+        }
+        
+        res.render('dashboard', {
+          title: 'Личный кабинет',
+          user: user,
+          courses: courses
+        });
+      } catch (error) {
+        console.error('[MAIN] Критическая ошибка при загрузке dashboard:', error);
+        // Fallback на mock данные в случае ошибки
+        res.render('dashboard', {
+          title: 'Личный кабинет',
+          user: sessionData?.userData || { 
+            name: 'Пользователь', 
+            email: 'unknown@example.com',
+            roles: ['student']
+          },
+          courses: mockCourses.filter(c => c.enrolled),
+          error: 'Не удалось загрузить данные. Показаны демонстрационные данные.'
+        });
+      }
       break;
       
     default:
@@ -116,7 +176,7 @@ router.get('/logout', async (req, res) => {
   res.redirect('/');
 });
 
-// Демо-страница курса
+// Страница курса
 router.get('/course/:id', async (req, res) => {
   const { userStatus, sessionData } = req;
   
@@ -124,7 +184,7 @@ router.get('/course/:id', async (req, res) => {
     return res.redirect('/');
   }
   
-  // Фиктивные данные курса
+  // Фиктивные данные курса (fallback)
   const mockCourses = {
     'course_1': {
       id: 'course_1',
@@ -165,19 +225,76 @@ router.get('/course/:id', async (req, res) => {
   };
   
   const courseId = req.params.id;
-  const course = mockCourses[courseId] || {
-    id: courseId,
-    name: 'Курс не найден',
-    description: 'Запрошенный курс не существует',
-    instructor: 'Неизвестно',
-    enrolled: false
-  };
+  let course = null;
   
-  res.render('course', {
-    title: course.name,
-    user: sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' },
-    course: course
-  });
+  try {
+    // Пытаемся получить реальные данные курса из main модуля
+    const user = sessionData?.userData;
+    
+    if (user && user.id) {
+      try {
+        // Получаем курсы пользователя
+        const coursesData = await mainApiClient.getUserCourses(user.id);
+        const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
+        
+        // Ищем нужный курс
+        course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
+        
+        // Если курс найден, получаем тесты пользователя для этого курса
+        if (course) {
+          try {
+            const userTests = await mainApiClient.getUserTests(user.id);
+            if (userTests && Array.isArray(userTests)) {
+              // Фильтруем тесты по курсу (если есть связь)
+              course.tests = userTests.filter(t => 
+                t.course_id === courseId || 
+                t.courseId === courseId ||
+                t.course === courseId
+              );
+            }
+          } catch (err) {
+            console.warn(`[MAIN] Не удалось получить тесты для курса ${courseId}:`, err.message);
+          }
+        }
+      } catch (err) {
+        console.error(`[MAIN] Ошибка при получении данных курса ${courseId}:`, err.message);
+      }
+    }
+    
+    // Если курс не найден, используем mock данные
+    if (!course) {
+      course = mockCourses[courseId] || {
+        id: courseId,
+        name: 'Курс не найден',
+        description: 'Запрошенный курс не существует',
+        instructor: 'Неизвестно',
+        enrolled: false
+      };
+    }
+    
+    res.render('course', {
+      title: course.name,
+      user: sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' },
+      course: course
+    });
+  } catch (error) {
+    console.error('[MAIN] Критическая ошибка при загрузке курса:', error);
+    // Fallback на mock данные
+    course = mockCourses[courseId] || {
+      id: courseId,
+      name: 'Ошибка загрузки',
+      description: 'Не удалось загрузить данные курса',
+      instructor: 'Неизвестно',
+      enrolled: false
+    };
+    
+    res.render('course', {
+      title: course.name,
+      user: sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' },
+      course: course,
+      error: 'Не удалось загрузить данные курса. Показаны демонстрационные данные.'
+    });
+  }
 });
 
 // Страница 404
