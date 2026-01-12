@@ -51,7 +51,7 @@ func NewSessionRepository(db *mongo.Database) SessionRepository {
 func (r *sessionRepository) Create(ctx context.Context, session *models.LoginSession) error {
 	session.CreatedAt = time.Now()
 	session.UpdatedAt = time.Now()
-	session.ExpiresAt = time.Now().Add(10 * time.Minute) // Сессия живет 10 минут
+	session.ExpiresAt = time.Now().Add(5 * time.Minute) // По ТЗ: сессия ожидания авторизации живет 5 минут
 
 	_, err := r.collection.InsertOne(ctx, session)
 	return err

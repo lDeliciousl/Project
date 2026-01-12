@@ -196,8 +196,14 @@ func (s *tokenService) RefreshTokens(ctx context.Context, refreshToken string) (
 
 // RevokeRefreshToken отзывает (удаляет) refresh токен
 func (s *tokenService) RevokeRefreshToken(ctx context.Context, refreshToken string) error {
+	// Валидируем токен и извлекаем email
+	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token: %w", err)
+	}
+
 	// Находим пользователя с этим токеном
-	user, err := s.userRepo.FindByEmail(ctx, extractEmailFromToken(refreshToken))
+	user, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		return fmt.Errorf("failed to find user: %w", err)
 	}
@@ -253,11 +259,4 @@ func (s *tokenService) GetUserTokens(ctx context.Context, userID primitive.Objec
 	}
 
 	return user.RefreshTokens, nil
-}
-
-// extractEmailFromToken извлекает email из refresh токена (без валидации)
-func extractEmailFromToken(refreshToken string) string {
-	// Это упрощенная версия - в реальном проекте нужно использовать JWT парсинг
-	// или хранить email вместе с токеном в базе данных
-	return ""
 }

@@ -118,8 +118,11 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 		return
 	}
 
-	// Редирект на страницу успеха
-	c.Redirect(http.StatusFound, "/auth/success")
+	// Редирект на страницу успеха (или можно вернуть JSON)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Authorization successful",
+	})
 }
 
 // RefreshToken обновляет токены
@@ -184,6 +187,75 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	c.Status(http.StatusOK)
+}
+
+// GenerateAuthCode генерирует код для авторизации по email
+// @Summary Генерация кода авторизации
+// @Description Генерирует код для авторизации по email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body models.GenerateCodeRequest true "Данные для генерации кода"
+// @Success 200 {object} models.GenerateCodeResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/auth/code/generate [post]
+func (h *AuthHandler) GenerateAuthCode(c *gin.Context) {
+	var req models.GenerateCodeRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid request body",
+		})
+		return
+	}
+
+	code, err := h.authService.GenerateAuthCode(c.Request.Context(), req.LoginToken, req.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.GenerateCodeResponse{
+		Code: code,
+	})
+}
+
+// VerifyAuthCode проверяет код авторизации
+// @Summary Проверка кода авторизации
+// @Description Проверяет код и завершает авторизацию. Email извлекается из refresh токена (по ТЗ)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body models.VerifyCodeRequest true "Данные для проверки кода"
+// @Success 200
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/auth/code/verify [post]
+func (h *AuthHandler) VerifyAuthCode(c *gin.Context) {
+	var req models.VerifyCodeRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid request body",
+		})
+		return
+	}
+
+	err := h.authService.VerifyAuthCode(c.Request.Context(), req.LoginToken, req.Code, req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Code verified successfully",
+	})
 }
 
 // HealthCheck проверяет работоспособность сервиса

@@ -421,10 +421,8 @@ func (r *userRepository) BlockUser(ctx context.Context, userID primitive.ObjectI
 		bson.M{"_id": userID},
 		bson.M{
 			"$set": bson.M{
-				"blocked":      true,
-				"block_reason": reason,
-				"blocked_at":   time.Now(),
-				"updated_at":   time.Now(),
+				"blocked":    true,
+				"updated_at": time.Now(),
 			},
 		},
 	)
@@ -433,6 +431,7 @@ func (r *userRepository) BlockUser(ctx context.Context, userID primitive.ObjectI
 		return fmt.Errorf("failed to block user: %w", err)
 	}
 
+	_ = reason // reason можно использовать для логирования, но не сохраняем в БД
 	return nil
 }
 
@@ -443,10 +442,8 @@ func (r *userRepository) UnblockUser(ctx context.Context, userID primitive.Objec
 		bson.M{"_id": userID},
 		bson.M{
 			"$set": bson.M{
-				"blocked":      false,
-				"block_reason": "",
-				"blocked_at":   nil,
-				"updated_at":   time.Now(),
+				"blocked":    false,
+				"updated_at": time.Now(),
 			},
 		},
 	)
@@ -461,18 +458,30 @@ func (r *userRepository) UnblockUser(ctx context.Context, userID primitive.Objec
 // UpsertByProvider создает или обновляет пользователя по провайдеру
 func (r *userRepository) UpsertByProvider(ctx context.Context, provider, providerID string, user *models.User) (*models.User, error) {
 	now := time.Now()
-	user.UpdatedAt = now
 
-	if user.CreatedAt.IsZero() {
+	// Проверяем, существует ли пользователь
+	existingUser, err := r.FindByProvider(ctx, provider, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
+
+	// Если пользователя нет, создаем нового с именем "Аноним+номер" и ролью "Студент" (по ТЗ)
+	if existingUser == nil {
+		// Генерируем уникальный номер на основе текущего времени
+		anonymousNumber := fmt.Sprintf("%d", now.UnixNano()%1000000)
+		user.Name = fmt.Sprintf("Аноним%s", anonymousNumber)
+		user.Roles = []string{"Студент"}
 		user.CreatedAt = now
 	}
+
+	user.UpdatedAt = now
 
 	opts := options.FindOneAndUpdate().
 		SetUpsert(true).
 		SetReturnDocument(options.After)
 
 	var result models.User
-	err := r.collection.FindOneAndUpdate(
+	err = r.collection.FindOneAndUpdate(
 		ctx,
 		bson.M{
 			"provider":    provider,

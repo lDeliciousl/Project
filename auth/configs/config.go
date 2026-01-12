@@ -89,7 +89,7 @@ func Load() error {
 		JWT: JWTConfig{
 			AccessSecret:  getEnv("JWT_ACCESS_SECRET", "default-access-secret-change-me"),
 			RefreshSecret: getEnv("JWT_REFRESH_SECRET", "default-refresh-secret-change-me"),
-			AccessExpiry:  getEnvAsDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
+			AccessExpiry:  getEnvAsDuration("JWT_ACCESS_EXPIRY", 1*time.Minute), // По ТЗ: 1 минута
 			RefreshExpiry: getEnvAsDuration("JWT_REFRESH_EXPIRY", 7*24*time.Hour),
 		},
 		OAuth: OAuthConfig{

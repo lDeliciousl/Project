@@ -85,3 +85,21 @@ type RefreshResponse struct {
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
+
+// GenerateCodeRequest запрос на генерацию кода авторизации
+type GenerateCodeRequest struct {
+	LoginToken string `json:"login_token" binding:"required"`
+	Email      string `json:"email" binding:"required,email"`
+}
+
+// GenerateCodeResponse ответ на генерацию кода
+type GenerateCodeResponse struct {
+	Code string `json:"code"`
+}
+
+// VerifyCodeRequest запрос на проверку кода авторизации
+type VerifyCodeRequest struct {
+	LoginToken   string `json:"login_token" binding:"required"`
+	Code         string `json:"code" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"` // По ТЗ: email извлекается из refresh токена
+}

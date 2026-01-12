@@ -19,7 +19,7 @@ type AuthService interface {
 	HandleOAuthCallback(ctx context.Context, providerType, code, state string) error
 	VerifyAuthStatus(ctx context.Context, loginToken string) (*models.VerifyResponse, error)
 	GenerateAuthCode(ctx context.Context, loginToken, email string) (string, error)
-	VerifyAuthCode(ctx context.Context, loginToken, code string) error
+	VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken string) error
 	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
 }
@@ -43,7 +43,7 @@ func NewAuthService(
 		userRepo:     userRepo,
 		jwtService:   jwtService,
 		oauthManager: oauthManager,
-		codeExpiry:   10 * time.Minute, // Код живет 10 минут
+		codeExpiry:   1 * time.Minute, // По ТЗ: код живет 1 минуту
 	}
 }
 
@@ -149,6 +149,17 @@ func (s *authService) HandleOAuthCallback(ctx context.Context, providerType, cod
 		return fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
+	// Сохраняем refresh токен в БД пользователя (по ТЗ)
+	refreshTokenModel := models.RefreshToken{
+		Token:     refreshToken,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 дней
+	}
+	err = s.userRepo.AddRefreshToken(ctx, dbUser.ID, refreshTokenModel)
+	if err != nil {
+		return fmt.Errorf("failed to save refresh token: %w", err)
+	}
+
 	// Обновляем сессию с токенами
 	err = s.sessionRepo.UpdateTokens(ctx, loginToken, accessToken, refreshToken, dbUser.ID)
 	if err != nil {
@@ -187,7 +198,7 @@ func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email st
 }
 
 // VerifyAuthCode проверяет код авторизации
-func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code string) error {
+func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken string) error {
 	// Получаем сессию
 	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
 	if err != nil {
@@ -207,8 +218,57 @@ func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code strin
 		return errors.New("invalid code")
 	}
 
-	// TODO: Здесь нужно получить email пользователя (например, из запроса)
-	// и создать/найти пользователя
+	// Извлекаем email из refresh токена (по ТЗ)
+	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Создаем или находим пользователя
+	user := &models.User{
+		Email:      email,
+		Provider:   "code",
+		ProviderID: email, // Для code авторизации используем email как provider_id
+		IsActive:   true,
+		// Имя и роль будут установлены в UpsertByProvider для нового пользователя
+	}
+
+	dbUser, err := s.userRepo.UpsertByProvider(ctx, "code", email, user)
+	if err != nil {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	// Генерируем токены
+	accessToken, err := s.jwtService.GenerateAccessToken(
+		dbUser.ID.Hex(),
+		dbUser.Email,
+		dbUser.Roles,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	newRefreshToken, err := s.jwtService.GenerateRefreshToken(dbUser.Email)
+	if err != nil {
+		return fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Сохраняем refresh токен в БД пользователя (по ТЗ)
+	refreshTokenModel := models.RefreshToken{
+		Token:     newRefreshToken,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // 7 дней
+	}
+	err = s.userRepo.AddRefreshToken(ctx, dbUser.ID, refreshTokenModel)
+	if err != nil {
+		return fmt.Errorf("failed to save refresh token: %w", err)
+	}
+
+	// Обновляем сессию с токенами
+	err = s.sessionRepo.UpdateTokens(ctx, loginToken, accessToken, newRefreshToken, dbUser.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update session: %w", err)
+	}
 
 	return nil
 }

@@ -155,6 +155,10 @@ func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler) {
 			auth.POST("/refresh", handler.RefreshToken)
 			auth.POST("/logout", handler.Logout)
 
+			// Авторизация по коду
+			auth.POST("/code/generate", handler.GenerateAuthCode)
+			auth.POST("/code/verify", handler.VerifyAuthCode)
+
 			// OAuth callback'и
 			auth.GET("/github/callback", handler.OAuthCallback)
 			auth.GET("/yandex/callback", handler.OAuthCallback)
