@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6
+    container_name: auth-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - auth-network
+    healthcheck:
+          test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - auth-network
+    healthcheck:
+          test: ["CMD", "redis-cli", "ping"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+  auth-module:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-module
+    restart: on-failure:3
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/auth
+      - REDIS_URL=redis://redis:6379/0
+      - GITHUB_CLIENT_ID=Ov23li79xHWsMb7icgLS
+      - GITHUB_CLIENT_SECRET=449c98d9df4dc33dc9f25dd31f2af50ccd95c1f4
+      - YANDEX_CLIENT_ID=bfe57c2fadb5472c888a6f7c299bc29a
+      - YANDEX_CLIENT_SECRET=7a49fc5b5d09484a8b45108ae371cd5b
+      - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
+      - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - auth-network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    
+
+volumes:
+  mongo_data:
+  redis_data:
+
+networks:
+  auth-network:
+    driver: bridge
