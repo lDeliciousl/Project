@@ -1,35 +1,7 @@
 version: '3.8'
 
 services:
-  web-nginx:
-    image: nginx:alpine
-    ports:
-      - "8000:80"
-    volumes:
-      - ./web/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - web-backend
-    networks:
-      - testing-network
-
-  web-backend:
-    build: ./web/backend
-    deploy:
-      replicas: 2
-    environment:
-      - REDIS_HOST=web-redis
-      - REDIS_PORT=6379
-      - PORT=3000
-    depends_on:
-      - web-redis
-    networks:
-      - testing-network
-
-  web-redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
+  # База данных
   main-postgres:
     image: postgres:15-alpine
     container_name: testing-main-postgres
@@ -42,18 +14,17 @@ services:
       - "5433:5432"
     volumes:
       - main_postgres_data:/var/lib/postgresql/data
-      - ./main/main-module/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./main-module/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U main_module -d testing_system"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - testing-network
 
+  # Главный модуль
   main-module:
     build:
-      context: ./main/main-module
+      context: ./main-module
       dockerfile: Dockerfile
     container_name: testing-main-module
     restart: unless-stopped
@@ -72,13 +43,6 @@ services:
         condition: service_healthy
     stdin_open: true
     tty: true
-    networks:
-      - testing-network
-
-networks:
-  testing-network:
-    driver: bridge
 
 volumes:
-  redis_data:
   main_postgres_data:
