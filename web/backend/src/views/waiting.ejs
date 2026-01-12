@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .loading {
+            margin: 30px 0;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .token-box {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 18px;
+            color: #333;
+        }
+        .auth-options {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .auth-btn {
+            display: inline-block;
+            margin: 5px;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            color: #333;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .auth-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .footer {
+            margin-top: 30px;
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⏳ Ожидание авторизации</h1>
+        <p class="subtitle">Мы ждем подтверждения от провайдера...</p>
+        
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Проверка статуса авторизации...</p>
+        </div>
+        
+        <div class="token-box">
+            Токен: <strong><%= loginToken %></strong>
+        </div>
+        
+        <p>Используйте этот токен для авторизации на другом устройстве</p>
+        
+        <div class="auth-options">
+            <p>Или попробуйте другой способ:</p>
+            <% authMethods.forEach(method => { %>
+                <a href="/auth/login/<%= method.type %>" class="auth-btn">
+                    <%= method.name %>
+                </a>
+            <% }); %>
+        </div>
+        
+        <div class="footer">
+            <p>Автоматическая проверка каждые 3 секунды</p>
+        </div>
+    </div>
+
+    <script>
+        // Автоматическая проверка статуса
+        function checkAuthStatus() {
+            fetch('/auth/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Статус:', data.status);
+                    
+                    if (data.status === 'authenticated') {
+                        // Успешная авторизация
+                        window.location.href = '/';
+                    } else if (data.status === 'unknown') {
+                        // Сессия устарела
+                        window.location.href = '/';
+                    }
+                    // Если 'anonymous' - продолжаем ждать
+                })
+                .catch(error => {
+                    console.error('Ошибка проверки:', error);
+                });
+        }
+        
+        // Проверяем каждые 3 секунды
+        setInterval(checkAuthStatus, 3000);
+        
+        // Первая проверка через 1 секунду
+        setTimeout(checkAuthStatus, 1000);
+    </script>
+</body>
+</html>
