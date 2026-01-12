@@ -1,6 +1,35 @@
 version: '3.8'
 
 services:
+  web-nginx:
+    image: nginx:alpine
+    ports:
+      - "8000:80"
+    volumes:
+      - ./web/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web-backend
+    networks:
+      - testing-network
+
+  web-backend:
+    build: ./web/backend
+    deploy:
+      replicas: 2
+    environment:
+      - REDIS_HOST=web-redis
+      - REDIS_PORT=6379
+      - PORT=3000
+    depends_on:
+      - web-redis
+    networks:
+      - testing-network
+
+  web-redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
   main-postgres:
     image: postgres:15-alpine
     container_name: testing-main-postgres
@@ -51,4 +80,5 @@ networks:
     driver: bridge
 
 volumes:
+  redis_data:
   main_postgres_data:

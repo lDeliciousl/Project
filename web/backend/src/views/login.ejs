@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .auth-container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .auth-methods {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .auth-btn {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: white;
+            color: #333;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .auth-btn:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        .auth-btn.github { border-color: #333; }
+        .auth-btn.yandex { border-color: #f00; }
+        .auth-btn.code { border-color: #4CAF50; }
+        .icon {
+            font-size: 20px;
+            width: 24px;
+            text-align: center;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #888;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Система тестирования</h1>
+        <p class="subtitle">Выберите способ входа в систему</p>
+        
+        <div class="auth-methods">
+            <% authMethods.forEach(method => { %>
+                <a href="/auth/login/<%= method.type %>" class="auth-btn <%= method.type %>">
+                    <span class="icon">
+                        <% if (method.type === 'github') { %>🐙<% } %>
+                        <% if (method.type === 'yandex') { %>Я<% } %>
+                        <% if (method.type === 'code') { %>🔑<% } %>
+                    </span>
+                    <span>Войти через <%= method.name %></span>
+                </a>
+            <% }); %>
+        </div>
+        
+        <div class="footer">
+            Выберите удобный способ авторизации
+        </div>
+    </div>
+</body>
+</html>
