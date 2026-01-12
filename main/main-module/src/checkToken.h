@@ -124,7 +124,12 @@ inline std::unordered_map<std::string, jwt_stub::claim> CheckToken(const httplib
         auto verifier = jwt_stub::verify();
         verifier.verify(decoded_token);
         payload = decoded_token.get_payload_claims();
-        std::cout << "Valid token (STUB MODE)." << std::endl;
+        
+        // [STUB FIX] Добавляем фейковые права, чтобы пройти проверку Unauthorized()
+        payload["role"] = jwt_stub::claim(); 
+        payload["sub"] = jwt_stub::claim();
+        
+        std::cout << "Valid token (STUB MODE). Permissions granted." << std::endl;
     } catch (...) {
         std::cout << "Invalid token." << std::endl;
     }

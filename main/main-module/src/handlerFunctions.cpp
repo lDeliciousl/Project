@@ -23,6 +23,11 @@ void PostgresInit() {
 
 // Обработчик несовпадающих запросов
 void handle_unmatched_request(const httplib::Request& req, httplib::Response& res) {
+    // Если ответ уже сформирован (например, 401 Unauthorized), не переписываем его
+    if (res.status != 0 && res.status != 200 && !res.body.empty()) {
+        return;
+    }
+
     std::cout << "[ERROR] Unmatched request: " << req.method << " " << req.path << std::endl;
     res.status = 404;
     res.set_content("{\"error\": \"Not found\", \"path\": \"" + req.path + "\"}", "application/json");
