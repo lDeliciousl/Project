@@ -7,6 +7,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 message(STATUS "Building main_server (JWT DISABLED - using stub)")
 
+# JSON библиотека (header-only)
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
 # Включите директории
 include_directories(
     src
@@ -134,6 +137,8 @@ endif()
 target_compile_definitions(main_server PRIVATE
     -DJWT_STUB_MODE
 )
+
+target_link_libraries(main_server PRIVATE nlohmann_json::nlohmann_json)
 
 # Настройка свойств
 set_target_properties(main_server PROPERTIES

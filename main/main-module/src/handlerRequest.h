@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <nlohmann/json.hpp>
 #include "checkToken.h"
 
 // ============================================================================
@@ -57,3 +58,6 @@ void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res);
 
 void handleGetRequest(const httplib::Request& req, httplib::Response& res);
 void handlePostRequest(const httplib::Request& req, httplib::Response& res);
+
+// Пример обработчика, который парсит JSON-тело запроса (создание попытки теста)
+void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& res);

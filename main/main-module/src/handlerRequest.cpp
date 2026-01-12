@@ -221,3 +221,65 @@ void handlePostRequest(const httplib::Request& req, httplib::Response& res) {
     
     res.set_content("{\"status\": \"received\", \"path\": \"" + req.path + "\"}", "application/json");
 }
+
+// ============================================================================
+// ПРИМЕР ОБРАБОТЧИКА С РЕАЛЬНЫМ JSON-ПАРСИНГОМ
+// ============================================================================
+
+void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& res) {
+    std::cout << "[CreateTestAttemptHandler] POST " << req.path << std::endl;
+    std::cout << "Body: " << req.body << std::endl;
+
+    // 1) Проверяем токен и права (пока заглушки)
+    auto permission = CheckToken(req);
+    if (Unauthorized(res, permission)) return;
+
+    // Например, разрешение \"pass_test\"
+    if (!CheckAccess(permission, "pass_test", res)) return;
+
+    try {
+        // 2) Разбираем JSON-тело запроса
+        // Ожидаем формат:
+        // {
+        //   "test_id": "uuid",
+        //   "user_id": "uuid",
+        //   "answers": [
+        //     { "question_id": "uuid", "option_id": "uuid" }
+        //   ]
+        // }
+        nlohmann::json body = nlohmann::json::parse(req.body);
+
+        std::string test_id  = body.at("test_id").get<std::string>();
+        std::string user_id  = body.at("user_id").get<std::string>();
+
+        // answers мы пока просто считаем, без сохранения в БД
+        size_t answers_count = 0;
+        if (body.contains("answers") && body["answers"].is_array()) {
+            answers_count = body["answers"].size();
+        }
+
+        std::cout << "[CreateTestAttemptHandler] test_id=" << test_id
+                  << " user_id=" << user_id
+                  << " answers=" << answers_count << std::endl;
+
+        // 3) Здесь позже будет реальная работа с БД:
+        //  - создать попытку теста
+        //  - записать ответы
+        //  - посчитать результат
+
+        // 4) Формируем JSON-ответ
+        nlohmann::json resp;
+        resp["status"] = "success";
+        resp["message"] = "Test attempt created (stub)";
+        resp["test_id"] = test_id;
+        resp["user_id"] = user_id;
+        resp["answers_count"] = answers_count;
+
+        res.status = 201;
+        res.set_content(resp.dump(), "application/json");
+    } catch (const std::exception& ex) {
+        std::cerr << "[CreateTestAttemptHandler] Error: " << ex.what() << std::endl;
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid JSON body\"}", "application/json");
+    }
+}

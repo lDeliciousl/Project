@@ -25,6 +25,8 @@ int main() {
     
     server.Get("/api/test", handleGetRequest);
     server.Post("/api/data", handlePostRequest);
+    // Пример ручки с JSON-телом для создания попытки теста
+    server.Post("/api/tests/attempts", CreateTestAttemptHandler);
     
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("{\"status\": \"ok\"}", "application/json");

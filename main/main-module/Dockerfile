@@ -9,6 +9,7 @@ RUN apt-get update && \
     libpq-dev \
     libssl-dev \
     postgresql-client \
+    nlohmann-json3-dev \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
