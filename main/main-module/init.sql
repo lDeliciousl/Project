@@ -96,14 +96,13 @@ INSERT INTO questions (id, test_id, text, question_type, points, order_number) V
     ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Сколько будет 2+2?', 'single_choice', 1, 1),
     ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Сколько будет 3*3?', 'single_choice', 1, 2)
 ON CONFLICT DO NOTHING;
-
 INSERT INTO question_options (id, question_id, text, is_correct, order_number) VALUES
     ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '3', FALSE, 1),
     ('ffffffff-ffff-ffff-ffff-ffffffffffff', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '4', TRUE, 2),
     ('gggggggg-gggg-gggg-gggg-gggggggggggg', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '5', FALSE, 3),
     ('hhhhhhhh-hhhh-hhhh-hhhh-hhhhhhhhhhhh', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '6', FALSE, 1),
-    ('iiiiiiii-iiii-iiii-iiii-iiiiiiiiiiii', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '9', TRUE, 2),
-    ('jjjjjjjj-jjjj-jjjj-jjjj-jjjjjjjjjjjj', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '12', FALSE, 3)
+    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '9', TRUE, 2),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '12', FALSE, 3)
 ON CONFLICT DO NOTHING;
 
 SELECT '✅ База данных инициализирована' as status;
