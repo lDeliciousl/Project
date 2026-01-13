@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        .token {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin: 10px 0 20px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #333;
+            word-break: break-all;
+        }
+        .alert {
+            margin: 12px 0;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .alert.success { background: #e9f7ef; color: #1e7e34; border: 1px solid #b7ebc6; }
+        .alert.error { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+        form {
+            display: grid;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        label {
+            font-size: 13px;
+            color: #444;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.12);
+        }
+        .stack {
+            display: grid;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .btn {
+            padding: 12px 14px;
+            border: 0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        .btn.primary { background: #667eea; color: white; }
+        .btn.primary:hover { filter: brightness(0.95); transform: translateY(-1px); }
+        .btn.secondary { background: #f3f4ff; color: #333; border: 1px solid #dfe2ff; }
+        .btn.secondary:hover { background: #e9ecff; }
+        .cooldown {
+            font-size: 13px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Вход по коду</h1>
+        <p class="subtitle">Введите email, получите код и подтвердите вход</p>
+
+        <% if (message) { %>
+          <div class="alert success"><%= message %></div>
+        <% } %>
+
+        <% if (error) { %>
+          <div class="alert error"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/auth/code/verify" class="stack">
+            <div>
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" value="<%= email %>" placeholder="you@example.com" required />
+            </div>
+
+            <button id="sendCodeBtn" class="btn secondary" type="button">Отправить код</button>
+
+            <div>
+                <label for="code">Код</label>
+                <input id="code" name="code" type="text" inputmode="numeric" placeholder="123456" required />
+            </div>
+
+            <button class="btn primary" type="submit">Подтвердить</button>
+
+            <button id="resendCodeBtn" class="btn secondary" type="button" disabled>Отправить код повторно</button>
+            <div id="cooldownHint" class="cooldown" style="display: none;"></div>
+        </form>
+
+        <div class="footer">
+            <a href="/login">Назад к выбору входа</a>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var COOLDOWN_SECONDS = 60;
+            var KEY = 'auth_code_resend_until';
+            var KEY_SENT = 'auth_code_sent_once';
+
+            var emailInput = document.getElementById('email');
+            var sendBtn = document.getElementById('sendCodeBtn');
+            var resendBtn = document.getElementById('resendCodeBtn');
+            var hint = document.getElementById('cooldownHint');
+
+            function hasSentOnce() {
+                return localStorage.getItem(KEY_SENT) === '1';
+            }
+
+            function setSentOnce() {
+                localStorage.setItem(KEY_SENT, '1');
+            }
+
+            function getUntil() {
+                var raw = localStorage.getItem(KEY);
+                var until = raw ? parseInt(raw, 10) : 0;
+                return Number.isFinite(until) ? until : 0;
+            }
+
+            function setUntil(ms) {
+                localStorage.setItem(KEY, String(ms));
+            }
+
+            function formatSeconds(s) {
+                return String(s);
+            }
+
+            function updateUI() {
+                var until = getUntil();
+                var now = Date.now();
+                var remainingMs = Math.max(0, until - now);
+                var remainingSec = Math.ceil(remainingMs / 1000);
+
+                var sentOnce = hasSentOnce();
+                if (sendBtn) {
+                    sendBtn.style.display = sentOnce ? 'none' : 'block';
+                }
+                if (resendBtn) {
+                    resendBtn.style.display = sentOnce ? 'block' : 'none';
+                }
+
+                if (remainingSec > 0) {
+                    if (resendBtn) resendBtn.disabled = true;
+                    hint.style.display = 'block';
+                    hint.textContent = 'Повторная отправка будет доступна через ' + formatSeconds(remainingSec) + ' сек.';
+                } else {
+                    if (resendBtn) resendBtn.disabled = false;
+                    hint.style.display = 'none';
+                    hint.textContent = '';
+                }
+            }
+
+            function startCooldown() {
+                setUntil(Date.now() + COOLDOWN_SECONDS * 1000);
+                updateUI();
+            }
+
+            function sendCode() {
+                var email = (emailInput && emailInput.value ? emailInput.value.trim() : '');
+                if (!email) return;
+
+                setSentOnce();
+                startCooldown();
+                updateUI();
+
+                fetch('/auth/code/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ email: email }).toString()
+                }).catch(function () {
+                    // Если запрос упал, даем пользователю повторить (снимаем cooldown)
+                    localStorage.removeItem(KEY);
+                    localStorage.removeItem(KEY_SENT);
+                    updateUI();
+                });
+            }
+
+            if (sendBtn) {
+                sendBtn.addEventListener('click', sendCode);
+            }
+
+            if (resendBtn) {
+                resendBtn.addEventListener('click', sendCode);
+            }
+
+            updateUI();
+            setInterval(updateUI, 300);
+        })();
+    </script>
+</body>
+</html>

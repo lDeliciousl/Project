@@ -52,9 +52,18 @@ router.get('/login/:type', async (req, res) => {
     try {
       // Вызываем реальный auth модуль для инициализации OAuth
       const authResponse = await authApiClient.initOAuth(type, loginToken);
-      
+
+      if (type === 'code') {
+        return res.render('code', {
+          title: 'Вход по коду',
+          loginToken: loginToken,
+          message: null,
+          error: null,
+          email: ''
+        });
+      }
+
       if (authResponse && authResponse.auth_url) {
-        // Редирект на реальный OAuth провайдер
         res.redirect(authResponse.auth_url);
       } else {
         throw new Error('Не получен auth_url от auth модуля');
@@ -70,6 +79,123 @@ router.get('/login/:type', async (req, res) => {
   } else if (userStatus === 'authenticated') {
     // Авторизованных пользователей отправляем в личный кабинет
     res.redirect('/');
+  }
+});
+
+router.post('/code/send', async (req, res) => {
+  const { sessionToken, userStatus, sessionData } = req;
+
+  if (userStatus === 'unknown' || !sessionToken) {
+    return res.redirect('/login');
+  }
+
+  const loginToken = sessionData?.loginToken;
+  const email = (req.body?.email || '').trim();
+
+  if (!loginToken) {
+    return res.status(400).render('error', {
+      title: 'Ошибка авторизации',
+      message: 'Не найден токен входа. Попробуйте заново.'
+    });
+  }
+
+  if (!email) {
+    return res.status(400).render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: null,
+      error: 'Введите email',
+      email: ''
+    });
+  }
+
+  try {
+    await authApiClient.generateAuthCode(loginToken, email);
+
+    return res.render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: 'Код сгенерирован. Проверьте логи auth-модуля.',
+      error: null,
+      email
+    });
+  } catch (error) {
+    console.error('[AUTH CODE] Ошибка при генерации кода:', error);
+    return res.status(500).render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: null,
+      error: error.message || 'Не удалось сгенерировать код',
+      email
+    });
+  }
+});
+
+router.post('/code/verify', async (req, res) => {
+  const { sessionToken, userStatus, sessionData } = req;
+
+  if (userStatus === 'unknown' || !sessionToken) {
+    return res.redirect('/login');
+  }
+
+  const loginToken = sessionData?.loginToken;
+  const email = (req.body?.email || '').trim();
+  const code = (req.body?.code || '').trim();
+
+  if (!loginToken) {
+    return res.status(400).render('error', {
+      title: 'Ошибка авторизации',
+      message: 'Не найден токен входа. Попробуйте заново.'
+    });
+  }
+
+  if (!code) {
+    return res.status(400).render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: null,
+      error: 'Введите код',
+      email
+    });
+  }
+
+  try {
+    await authApiClient.verifyAuthCode(loginToken, code);
+    const verifyResponse = await authApiClient.verifyLoginToken(loginToken);
+
+    if (verifyResponse && verifyResponse.status === 'granted') {
+      const userData = verifyResponse.user_data;
+      await sessionManager.updateToAuthenticated(
+        sessionToken,
+        verifyResponse.access_token,
+        verifyResponse.refresh_token,
+        userData || {
+          id: `user_${Date.now()}`,
+          email: email || 'unknown@example.com',
+          name: 'Пользователь',
+          roles: ['student']
+        }
+      );
+
+      return res.redirect('/');
+    }
+
+    return res.status(403).render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: null,
+      error: verifyResponse?.message || 'Авторизация не завершена. Попробуйте снова.',
+      email
+    });
+  } catch (error) {
+    console.error('[AUTH CODE] Ошибка при проверке кода:', error);
+    return res.status(500).render('code', {
+      title: 'Вход по коду',
+      loginToken,
+      message: null,
+      error: error.message || 'Не удалось проверить код',
+      email
+    });
   }
 });
 
