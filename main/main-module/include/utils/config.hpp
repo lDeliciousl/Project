@@ -24,6 +24,9 @@ public:
         
         // Настройки сервера
         set_from_env("SERVER_PORT", "server.port", "3002");
+
+        // JWT
+        set_from_env("JWT_SECRET", "jwt.secret", "");
         
         loaded_ = true;
         std::cout << "✅ Конфигурация загружена" << std::endl;

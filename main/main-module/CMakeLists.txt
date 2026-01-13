@@ -7,6 +7,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 message(STATUS "Building main_server (JWT DISABLED - using stub)")
 
+# OpenSSL is required for HS256 JWT validation (HMAC-SHA256)
+find_package(OpenSSL)
+
 # Включите директории
 include_directories(
     src
@@ -62,6 +65,12 @@ if(APPLE)
     
     # Настройки компиляции для macOS
     target_link_libraries(main_server pthread)
+
+    if(OpenSSL_FOUND)
+        target_link_libraries(main_server OpenSSL::Crypto)
+    else()
+        message(WARNING "OpenSSL not found on macOS. JWT validation may fail to link.")
+    endif()
     target_compile_options(main_server PRIVATE
         -Wno-deprecated-declarations
         -Wno-unused-variable
@@ -95,6 +104,12 @@ elseif(UNIX AND NOT APPLE)
     
     # Настройки компиляции для Linux
     target_link_libraries(main_server pthread)
+
+    if(OpenSSL_FOUND)
+        target_link_libraries(main_server OpenSSL::Crypto)
+    else()
+        message(WARNING "OpenSSL not found on Linux. JWT validation may fail to link.")
+    endif()
     target_compile_options(main_server PRIVATE
         -Wall
         -Wextra
@@ -126,6 +141,11 @@ elseif(WIN32)
     
     # Флаг заглушки для Windows
     target_compile_definitions(main_server PRIVATE -DNO_POSTGRESQL_WINDOWS)
+
+    # OpenSSL on Windows is not wired here yet
+    if(OpenSSL_FOUND)
+        target_link_libraries(main_server OpenSSL::Crypto)
+    endif()
 endif()
 
 # ============================================================================

@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <algorithm>
 #include <libpq-fe.h>
 #include <nlohmann/json.hpp>
 
@@ -11,23 +12,64 @@
 // ЗАГЛУШКИ ДЛЯ ФУНКЦИЙ
 // ============================================================================
 
-bool Unauthorized(httplib::Response& res, std::unordered_map<std::string, jwt_stub::claim> permission) {
-    if (permission.empty()) {
+static bool IsBlockedUser(const AuthContext& ctx) {
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        return false;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = ctx.user_id.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT is_blocked FROM users WHERE id = $1",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        PQclear(result);
+        return false;
+    }
+
+    std::string v = PQgetvalue(result, 0, 0);
+    PQclear(result);
+    return v == "t" || v == "true" || v == "1";
+}
+
+bool Unauthorized(httplib::Response& res, const AuthContext& ctx) {
+    if (!ctx.authorized) {
         res.status = 401;
         res.set_content("{\"error\": \"Unauthorized\"}", "application/json");
         return true;
     }
+
+    if (IsBlockedUser(ctx)) {
+        res.status = 418;
+        res.set_content("{\"error\": \"Blocked\"}", "application/json");
+        return true;
+    }
+
     return false;
 }
 
-bool CheckAccess(std::unordered_map<std::string, jwt_stub::claim> permission, std::string value, httplib::Response& res) {
-    // Всегда разрешаем в заглушке
+bool CheckAccess(const AuthContext& ctx, const std::string& value, httplib::Response& res) {
+    const bool ok = std::find(ctx.permissions.begin(), ctx.permissions.end(), value) != ctx.permissions.end();
+    if (!ok) {
+        res.status = 403;
+        res.set_content("{\"error\": \"Forbidden\"}", "application/json");
+        return false;
+    }
     return true;
 }
 
-bool IsThisUser(std::unordered_map<std::string, jwt_stub::claim> permission, int uid, httplib::Response& res) {
-    // Всегда true в заглушке
-    return true;
+bool IsThisUser(const AuthContext& ctx, const std::string& uid, httplib::Response& res) {
+    (void)res;
+    return ctx.user_id == uid;
 }
 
 // Реальные SQL функции
@@ -90,11 +132,11 @@ void AddUserHandler(const httplib::Request& req, httplib::Response& res) {
     std::cout << "[AddUserHandler] Called" << std::endl;
     
     // Проверка токена
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
     
     // Проверка доступа
-    if (!CheckAccess(permission, "admin", res)) return;
+    if (!CheckAccess(ctx, "user:add", res)) return;
     
     // Простая логика добавления пользователя
     try {
@@ -111,8 +153,10 @@ void AddUserHandler(const httplib::Request& req, httplib::Response& res) {
 void GetUserListHandler(const httplib::Request& req, httplib::Response& res) {
     std::cout << "[GetUserListHandler] Called" << std::endl;
     
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "user:list:read", res)) return;
     
     Database& db = Database::get_instance();
     PGconn* conn = db.getConnection();
@@ -158,8 +202,10 @@ void GetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserNameHandler] Called for user: " << userId << std::endl;
     
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    // По умолчанию разрешаем смотреть ФИО (по task_flow), но оставляем блокировку
     
     Database& db = Database::get_instance();
     PGconn* conn = db.getConnection();
@@ -194,18 +240,28 @@ void GetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
 void SetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[SetUserNameHandler] Called for user: " << userId << std::endl;
-    auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"status\": \"success\", \"message\": \"Name updated for user " + userId + "\"}", "application/json");
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    // Себе можно по умолчанию, другому - только при наличии permission
+    if (!IsThisUser(ctx, userId, res)) {
+        if (!CheckAccess(ctx, "user:fullName:write", res)) return;
     }
+
+    res.set_content("{\"status\": \"success\", \"message\": \"Name updated for user " + userId + "\"}", "application/json");
 }
 
 void GetUserCoursesHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserCoursesHandler] Called for user: " << userId << std::endl;
     
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    // По умолчанию о себе можно, о другом - нужен доступ
+    if (!IsThisUser(ctx, userId, res)) {
+        if (!CheckAccess(ctx, "user:data:read", res)) return;
+    }
     
     Database& db = Database::get_instance();
     PGconn* conn = db.getConnection();
@@ -256,18 +312,26 @@ void GetUserCoursesHandler(const httplib::Request& req, httplib::Response& res) 
 void GetUserGradesHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserGradesHandler] Called for user: " << userId << std::endl;
-    auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"grades\": {\"Math\": 85, \"Physics\": 90, \"Chemistry\": 78}}", "application/json");
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!IsThisUser(ctx, userId, res)) {
+        if (!CheckAccess(ctx, "user:data:read", res)) return;
     }
+
+    res.set_content("{\"grades\": {\"Math\": 85, \"Physics\": 90, \"Chemistry\": 78}}", "application/json");
 }
 
 void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserTestsHandler] Called for user: " << userId << std::endl;
     
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!IsThisUser(ctx, userId, res)) {
+        if (!CheckAccess(ctx, "user:data:read", res)) return;
+    }
     
     Database& db = Database::get_instance();
     PGconn* conn = db.getConnection();
@@ -319,19 +383,21 @@ void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res) {
 void GetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserRolesHandler] Called for user: " << userId << std::endl;
-    auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"roles\": [\"student\", \"user\"]}", "application/json");
-    }
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "user:roles:read", res)) return;
+    res.set_content("{\"roles\": [\"student\", \"user\"]}", "application/json");
 }
 
 void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[SetUserRolesHandler] Called for user: " << userId << std::endl;
-    auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"status\": \"success\", \"message\": \"Roles updated\"}", "application/json");
-    }
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "user:roles:write", res)) return;
+    res.set_content("{\"status\": \"success\", \"message\": \"Roles updated\"}", "application/json");
 }
 
 // ============================================================================
@@ -341,14 +407,9 @@ void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
 void handleGetRequest(const httplib::Request& req, httplib::Response& res) {
     std::cout << "GET request to: " << req.path << std::endl;
     
-    // Простая проверка токена
-    std::string token = findToken(req);
-    if (!token.empty()) {
-        res.set_content("{\"status\": \"success\", \"message\": \"Authorized\", \"path\": \"" + req.path + "\"}", "application/json");
-    } else {
-        res.status = 401;
-        res.set_content("{\"status\": \"error\", \"message\": \"Unauthorized\"}", "application/json");
-    }
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+    res.set_content("{\"status\": \"success\", \"message\": \"Authorized\", \"path\": \"" + req.path + "\"}", "application/json");
 }
 
 void handlePostRequest(const httplib::Request& req, httplib::Response& res) {
@@ -367,11 +428,10 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
     std::cout << "Body: " << req.body << std::endl;
 
     // 1) Проверяем токен и права (пока заглушки)
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
 
-    // Например, разрешение "pass_test"
-    if (!CheckAccess(permission, "pass_test", res)) return;
+    if (!CheckAccess(ctx, "test:attempt:create", res)) return;
 
     try {
         // 2) Разбираем JSON-тело запроса
@@ -452,11 +512,11 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
 // ============================================================================
 
 void CreateTestHandler(const httplib::Request& req, httplib::Response& res) {
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
     
     // Check if user is teacher/admin (stub check)
-    if (!CheckAccess(permission, "create_test", res)) return;
+    if (!CheckAccess(ctx, "course:test:add", res)) return;
 
     try {
         auto body = nlohmann::json::parse(req.body);
@@ -485,8 +545,10 @@ void CreateTestHandler(const httplib::Request& req, httplib::Response& res) {
 }
 
 void AddQuestionHandler(const httplib::Request& req, httplib::Response& res) {
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "quest:create", res)) return;
     
     // Extract test_id from path
     std::string test_id = matchToString(req.matches, 1);
@@ -529,8 +591,8 @@ void AddQuestionHandler(const httplib::Request& req, httplib::Response& res) {
 
 void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res) {
     // Auth check optional? Usually need to be logged in.
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
 
     std::string test_id = matchToString(req.matches, 1);
     Database& db = Database::get_instance();
@@ -574,8 +636,8 @@ void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res) 
 }
 
 void GetTestsHandler(const httplib::Request& req, httplib::Response& res) {
-    auto permission = CheckToken(req);
-    if (Unauthorized(res, permission)) return;
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
 
     Database& db = Database::get_instance();
     std::vector<Test> tests = db.get_all_tests();

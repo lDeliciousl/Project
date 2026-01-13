@@ -18,9 +18,9 @@ int matchToInt(const std::smatch& match, size_t index = 1);
 // ФУНКЦИИ ДЛЯ ПРОВЕРКИ ДОСТУПА
 // ============================================================================
 
-bool Unauthorized(httplib::Response& res, std::unordered_map<std::string, jwt_stub::claim> permission);
-bool CheckAccess(std::unordered_map<std::string, jwt_stub::claim> permission, std::string value, httplib::Response& res);
-bool IsThisUser(std::unordered_map<std::string, jwt_stub::claim> permission, int uid, httplib::Response& res);
+bool Unauthorized(httplib::Response& res, const AuthContext& ctx);
+bool CheckAccess(const AuthContext& ctx, const std::string& value, httplib::Response& res);
+bool IsThisUser(const AuthContext& ctx, const std::string& uid, httplib::Response& res);
 
 // ============================================================================
 // SQL ЗАГЛУШКИ
