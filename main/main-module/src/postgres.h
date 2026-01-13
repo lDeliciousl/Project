@@ -6,6 +6,10 @@
 #include <vector>
 #include <map>
 
+// Forward declaration для PostgreSQL
+struct pg_conn;
+typedef struct pg_conn PGconn;
+
 // Кроссплатформенные заголовки
 #ifdef _WIN32
     #include <windows.h>
@@ -83,6 +87,13 @@ public:
     
     // Получить глобальный экземпляр БД
     static Database& get_instance();
+    
+    // Методы для выполнения SQL запросов
+    std::vector<int> getIntList(const std::string& column, const std::string& table);
+    std::vector<std::string> getStringList(const std::string& column, const std::string& table);
+    
+    // Получить connection для прямого доступа (для совместимости)
+    PGconn* getConnection() const;
     
 private:
     struct Impl;

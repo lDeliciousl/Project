@@ -39,11 +39,14 @@ services:
       - PORT=3000
       - MAIN_MODULE_URL=http://main-module:3002
       - MAIN_MODULE_TIMEOUT=5000
+      - AUTH_MODULE_URL=http://auth-module:8001
       - NODE_ENV=production
     depends_on:
       web-redis:
         condition: service_healthy
       main-module:
+        condition: service_started
+      auth-module:
         condition: service_started
     networks:
       - testing-network
@@ -106,6 +109,66 @@ services:
       retries: 3
       start_period: 30s
 
+  # Auth module services
+  auth-mongo:
+    image: mongo:6
+    container_name: auth-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - auth_mongo_data:/data/db
+    networks:
+      - testing-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  auth-redis:
+    image: redis:7-alpine
+    container_name: auth-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - auth_redis_data:/data
+    networks:
+      - testing-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  auth-module:
+    build:
+      context: ./auth
+      dockerfile: Dockerfile
+    container_name: auth-module
+    restart: on-failure:3
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://auth-mongo:27017/auth
+      - REDIS_URL=redis://auth-redis:6379/0
+      - GITHUB_CLIENT_ID=Ov23li79xHWsMb7icgLS
+      - GITHUB_CLIENT_SECRET=449c98d9df4dc33dc9f25dd31f2af50ccd95c1f4
+      - YANDEX_CLIENT_ID=bfe57c2fadb5472c888a6f7c299bc29a
+      - YANDEX_CLIENT_SECRET=7a49fc5b5d09484a8b45108ae371cd5b
+      - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
+      - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
+    depends_on:
+      auth-mongo:
+        condition: service_healthy
+      auth-redis:
+        condition: service_healthy
+    networks:
+      - testing-network
+
 networks:
   testing-network:
     driver: bridge
@@ -113,3 +176,5 @@ networks:
 volumes:
   redis_data:
   main_postgres_data:
+  auth_mongo_data:
+  auth_redis_data:

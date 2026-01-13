@@ -165,10 +165,22 @@ router.get('/login', (req, res) => {
 
 // Выход из системы
 router.get('/logout', async (req, res) => {
-  const { sessionToken } = req;
+  const { sessionToken, sessionData } = req;
+  const sessionManager = require('../utils/session');
+  const authApiClient = require('../utils/authApiClient');
+  
+  // Если есть refresh токен, вызываем logout в auth модуле
+  if (sessionData?.refreshToken) {
+    try {
+      await authApiClient.logout(sessionData.refreshToken);
+      console.log('[LOGOUT] Токены инвалидированы в auth модуле');
+    } catch (error) {
+      console.error('[LOGOUT] Ошибка при logout в auth модуле:', error);
+      // Продолжаем удаление сессии даже если logout в auth модуле не удался
+    }
+  }
   
   if (sessionToken) {
-    const sessionManager = require('../utils/session');
     await sessionManager.deleteSession(sessionToken);
   }
   

@@ -68,6 +68,34 @@ router.get('/main-health', async (req, res) => {
   }
 });
 
+// Проверка подключения к auth модулю
+router.get('/auth-health', async (req, res) => {
+  try {
+    const authApiClient = require('../utils/authApiClient');
+    const health = await authApiClient.healthCheck();
+    
+    res.json({
+      status: 'ok',
+      authModule: {
+        url: authApiClient.baseURL,
+        status: health.status || 'ok',
+        message: health.message || 'Connected'
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      authModule: {
+        url: process.env.AUTH_MODULE_URL || 'http://auth-module:8001',
+        status: 'unavailable',
+        error: error.message
+      },
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // ========== Проксирование запросов к main модулю ==========
 
 // Работа с тестами

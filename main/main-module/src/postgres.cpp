@@ -4,6 +4,8 @@
 #include <sstream>
 #include <iomanip>
 #include <locale>
+#include <vector>
+#include <string>
 #include "../include/utils/config.hpp"
 
 // Для кодировки (если нужно)
@@ -392,4 +394,66 @@ std::string queryDatabase(const std::string& query) {
 
 void closeDatabase() {
     std::cout << "[DB] Database closed (stub)" << std::endl;
+}
+
+// Реализация методов для выполнения SQL запросов
+std::vector<int> Database::getIntList(const std::string& column, const std::string& table) {
+    std::vector<int> result;
+    
+    if (!pImpl || !pImpl->connection) {
+        std::cerr << "[SQL] Database not connected" << std::endl;
+        return result;
+    }
+    
+    std::stringstream query;
+    query << "SELECT " << column << " FROM " << table;
+    
+    PGresult* res = PQexec(pImpl->connection, query.str().c_str());
+    
+    if (PQresultStatus(res) == PGRES_TUPLES_OK) {
+        int rows = PQntuples(res);
+        for (int i = 0; i < rows; i++) {
+            try {
+                int value = std::stoi(PQgetvalue(res, i, 0));
+                result.push_back(value);
+            } catch (...) {
+                // Пропускаем некорректные значения
+            }
+        }
+    } else {
+        std::cerr << "[SQL] Query failed: " << PQerrorMessage(pImpl->connection) << std::endl;
+    }
+    
+    PQclear(res);
+    return result;
+}
+
+std::vector<std::string> Database::getStringList(const std::string& column, const std::string& table) {
+    std::vector<std::string> result;
+    
+    if (!pImpl || !pImpl->connection) {
+        std::cerr << "[SQL] Database not connected" << std::endl;
+        return result;
+    }
+    
+    std::stringstream query;
+    query << "SELECT " << column << " FROM " << table;
+    
+    PGresult* res = PQexec(pImpl->connection, query.str().c_str());
+    
+    if (PQresultStatus(res) == PGRES_TUPLES_OK) {
+        int rows = PQntuples(res);
+        for (int i = 0; i < rows; i++) {
+            result.push_back(PQgetvalue(res, i, 0));
+        }
+    } else {
+        std::cerr << "[SQL] Query failed: " << PQerrorMessage(pImpl->connection) << std::endl;
+    }
+    
+    PQclear(res);
+    return result;
+}
+
+PGconn* Database::getConnection() const {
+    return pImpl ? pImpl->connection : nullptr;
 }

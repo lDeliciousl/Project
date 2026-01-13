@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <libpq-fe.h>
+#include <nlohmann/json.hpp>
 
 // ============================================================================
 // ЗАГЛУШКИ ДЛЯ ФУНКЦИЙ
@@ -28,15 +30,15 @@ bool IsThisUser(std::unordered_map<std::string, jwt_stub::claim> permission, int
     return true;
 }
 
-// Заглушки для SQL функций
+// Реальные SQL функции
 std::vector<int> sql_get_list_int(const std::string& column, const std::string& table) {
-    std::cout << "[SQL STUB] get_list_int: " << column << " from " << table << std::endl;
-    return {1, 2, 3};  // Возвращаем тестовые данные
+    Database& db = Database::get_instance();
+    return db.getIntList(column, table);
 }
 
 std::vector<std::string> sql_get_list_str(const std::string& column, const std::string& table) {
-    std::cout << "[SQL STUB] get_list_str: " << column << " from " << table << std::endl;
-    return {"User1", "User2", "User3"};
+    Database& db = Database::get_instance();
+    return db.getStringList(column, table);
 }
 
 // Заглушки для Windows функций
@@ -112,20 +114,43 @@ void GetUserListHandler(const httplib::Request& req, httplib::Response& res) {
     auto permission = CheckToken(req);
     if (Unauthorized(res, permission)) return;
     
-    // Получаем данные через заглушки
-    std::vector<int> uids = sql_get_list_int("id", "users");
-    std::vector<std::string> names = sql_get_list_str("last_name", "users");
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+    
+    // Получаем данные из БД
+    std::string query = "SELECT id::text, email, full_name FROM users ORDER BY created_at";
+    PGresult* result = PQexec(conn, query.c_str());
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
     
     // Формируем JSON ответ
-    std::string json = "{\"users\": [";
-    for (size_t i = 0; i < std::min(uids.size(), names.size()); i++) {
-        if (i > 0) json += ",";
-        json += "{\"id\": " + std::to_string(uids[i]) + 
-                ", \"name\": \"" + names[i] + "\"}";
-    }
-    json += "]}";
+    nlohmann::json json_response;
+    nlohmann::json users_array = nlohmann::json::array();
     
-    res.set_content(json, "application/json");
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json user;
+        user["id"] = PQgetvalue(result, i, 0);
+        user["email"] = PQgetvalue(result, i, 1);
+        user["name"] = PQgetvalue(result, i, 2) ? PQgetvalue(result, i, 2) : "";
+        users_array.push_back(user);
+    }
+    
+    json_response["users"] = users_array;
+    PQclear(result);
+    
+    res.set_content(json_response.dump(), "application/json");
 }
 
 // Обработчик для получения имени пользователя
@@ -136,12 +161,33 @@ void GetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     auto permission = CheckToken(req);
     if (Unauthorized(res, permission)) return;
     
-    int requestedUid = matchToInt(req.matches, 1);
-    if (!IsThisUser(permission, requestedUid, res)) return;
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
     
-    res.set_content("{\"id\": " + userId + 
-                    ", \"name\": \"Test User " + userId + "\"}", 
-                    "application/json");
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+    
+    // Получаем имя пользователя из БД
+    std::stringstream query;
+    query << "SELECT id::text, full_name FROM users WHERE id = '" << userId << "'";
+    PGresult* result = PQexec(conn, query.str().c_str());
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"User not found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["name"] = PQgetvalue(result, 0, 1) ? PQgetvalue(result, 0, 1) : "";
+    
+    PQclear(result);
+    res.set_content(json_response.dump(), "application/json");
 }
 
 // Остальные обработчики - аналогичные заглушки
@@ -157,10 +203,54 @@ void SetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
 void GetUserCoursesHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserCoursesHandler] Called for user: " << userId << std::endl;
+    
     auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"courses\": [\"Math\", \"Physics\", \"Chemistry\"]}", "application/json");
+    if (Unauthorized(res, permission)) return;
+    
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
     }
+    
+    // Получаем курсы пользователя из БД
+    std::stringstream query;
+    query << "SELECT c.id::text, c.name, c.description, u.full_name as teacher_name "
+          << "FROM courses c "
+          << "JOIN user_courses uc ON c.id = uc.course_id "
+          << "LEFT JOIN users u ON c.teacher_id = u.id "
+          << "WHERE uc.user_id = '" << userId << "' AND c.is_deleted = FALSE";
+    
+    PGresult* result = PQexec(conn, query.str().c_str());
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    
+    nlohmann::json json_response;
+    nlohmann::json courses_array = nlohmann::json::array();
+    
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json course;
+        course["id"] = PQgetvalue(result, i, 0);
+        course["name"] = PQgetvalue(result, i, 1);
+        course["description"] = PQgetvalue(result, i, 2) ? PQgetvalue(result, i, 2) : "";
+        course["instructor"] = PQgetvalue(result, i, 3) ? PQgetvalue(result, i, 3) : "";
+        course["enrolled"] = true;
+        courses_array.push_back(course);
+    }
+    
+    json_response["courses"] = courses_array;
+    PQclear(result);
+    
+    res.set_content(json_response.dump(), "application/json");
 }
 
 void GetUserGradesHandler(const httplib::Request& req, httplib::Response& res) {
@@ -175,10 +265,55 @@ void GetUserGradesHandler(const httplib::Request& req, httplib::Response& res) {
 void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[GetUserTestsHandler] Called for user: " << userId << std::endl;
+    
     auto permission = CheckToken(req);
-    if (!Unauthorized(res, permission)) {
-        res.set_content("{\"tests\": [\"Midterm\", \"Final\", \"Quiz\"]}", "application/json");
+    if (Unauthorized(res, permission)) return;
+    
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
     }
+    
+    // Получаем тесты пользователя (попытки прохождения тестов)
+    std::stringstream query;
+    query << "SELECT t.id::text, t.name, ta.score, ta.max_score, ta.status, ta.finished_at "
+          << "FROM test_attempts ta "
+          << "JOIN tests t ON ta.test_id = t.id "
+          << "WHERE ta.user_id = '" << userId << "' "
+          << "ORDER BY ta.started_at DESC";
+    
+    PGresult* result = PQexec(conn, query.str().c_str());
+    
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    
+    nlohmann::json json_response;
+    nlohmann::json tests_array = nlohmann::json::array();
+    
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json test;
+        test["id"] = PQgetvalue(result, i, 0);
+        test["name"] = PQgetvalue(result, i, 1);
+        test["score"] = PQgetvalue(result, i, 2) ? std::stoi(PQgetvalue(result, i, 2)) : 0;
+        test["max_score"] = PQgetvalue(result, i, 3) ? std::stoi(PQgetvalue(result, i, 3)) : 0;
+        test["completed"] = (std::string(PQgetvalue(result, i, 4)) == "completed");
+        test["date"] = PQgetvalue(result, i, 5) ? PQgetvalue(result, i, 5) : "";
+        tests_array.push_back(test);
+    }
+    
+    json_response["tests"] = tests_array;
+    PQclear(result);
+    
+    res.set_content(json_response.dump(), "application/json");
 }
 
 void GetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
