@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/models"
@@ -192,6 +193,7 @@ func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email st
 
 	// Генерируем случайный код (6 цифр)
 	code := generateRandomCode(6)
+	log.Printf("[AUTH CODE] email=%s login_token=%s code=%s", email, loginToken, code)
 
 	// Сохраняем код в сессии
 	codeExpiresAt := time.Now().Add(s.codeExpiry)
