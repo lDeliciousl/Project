@@ -44,13 +44,16 @@ int main() {
     // API для работы с пользователями
     server.Post("/api/db/addUser", AddUser);    // добавляет нового пользователя в бд после регистрации
     server.Get("/api/db/users", GetUserList);    // Посмотреть список пользователей
-    server.Get(R"(/api/db/users/(\d+)/name)", GetUserNamea);    // Посмотреть информацию о пользователе (ФИО)
-    server.Put(R"(/api/db/users/(\d+)/name)", SetUserName);    // Изменить ФИО пользователя
-    server.Get(R"(/api/db/users/(\d+)/courses)", GetUserCourses);    // Посмотреть информацию о пользователе (курсы)
-    server.Get(R"(/api/db/users/(\d+)/grades)", GetUserGrades);    // Посмотреть информацию о пользователе (оценки)
-    server.Get(R"(/api/db/users/(\d+)/tests)", GetUserTests);    // Посмотреть информацию о пользователе (тесты)
-    server.Get(R"(/api/db/users/(\d+)/roles)", GetUserRoles);    // Посмотреть информацию о пользователе (роли)
-    server.Put(R"(/api/db/users/(\d+)/roles)", SetUserRoles);    // Изменить роли пользователя
+    server.Get(R"(/api/db/users/([^/]+)/name)", GetUserNamea);    // Посмотреть информацию о пользователе (ФИО)
+    server.Put(R"(/api/db/users/([^/]+)/name)", SetUserName);    // Изменить ФИО пользователя
+    server.Get(R"(/api/db/users/([^/]+)/courses)", GetUserCourses);    // Посмотреть информацию о пользователе (курсы)
+    server.Get(R"(/api/db/users/([^/]+)/grades)", GetUserGrades);    // Посмотреть информацию о пользователе (оценки)
+    server.Get(R"(/api/db/users/([^/]+)/tests)", GetUserTests);    // Посмотреть информацию о пользователе (тесты)
+    server.Get(R"(/api/db/users/([^/]+)/roles)", GetUserRoles);    // Посмотреть информацию о пользователе (роли)
+    server.Put(R"(/api/db/users/([^/]+)/roles)", SetUserRoles);    // Изменить роли пользователя
+
+    server.Get("/notification", GetNotificationsHandler);
+    server.Delete("/notification", ClearNotificationsHandler);
     
     // Получаем порт из конфигурации или используем значение по умолчанию
     std::string port_str = config.get("server.port", "3002");

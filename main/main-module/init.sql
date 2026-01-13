@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS user_courses (
     PRIMARY KEY (user_id, course_id)
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Таблицы для тестирования
 CREATE TABLE IF NOT EXISTS tests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,6 +93,12 @@ ON CONFLICT DO NOTHING;
 INSERT INTO user_courses (user_id, course_id) VALUES
     ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
 ON CONFLICT DO NOTHING;
+
+INSERT INTO notifications (user_id, message) VALUES
+    ('11111111-1111-1111-1111-111111111111', 'Добро пожаловать в систему!'),
+    ('11111111-1111-1111-1111-111111111111', 'У вас есть новый тест по дисциплине "Математика"'),
+    ('22222222-2222-2222-2222-222222222222', 'У вас есть новые ответы студентов на тест')
+;
 
 -- Тестовый тест с вопросами
 INSERT INTO tests (id, name, description, course_id, created_by) VALUES

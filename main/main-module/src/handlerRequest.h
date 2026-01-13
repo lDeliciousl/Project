@@ -52,6 +52,9 @@ void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res);
 void GetUserRolesHandler(const httplib::Request& req, httplib::Response& res);
 void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res);
 
+void GetNotificationsHandler(const httplib::Request& req, httplib::Response& res);
+void ClearNotificationsHandler(const httplib::Request& req, httplib::Response& res);
+
 // ============================================================================
 // ПРОСТЫЕ ОБРАБОТЧИКИ
 // ============================================================================

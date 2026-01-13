@@ -217,9 +217,17 @@ void GetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     }
     
     // Получаем имя пользователя из БД
-    std::stringstream query;
-    query << "SELECT id::text, full_name FROM users WHERE id = '" << userId << "'";
-    PGresult* result = PQexec(conn, query.str().c_str());
+    const char* paramValues[1];
+    paramValues[0] = userId.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT id::text, full_name FROM users WHERE id = $1",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
     
     if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
         res.status = 404;
@@ -273,14 +281,21 @@ void GetUserCoursesHandler(const httplib::Request& req, httplib::Response& res) 
     }
     
     // Получаем курсы пользователя из БД
-    std::stringstream query;
-    query << "SELECT c.id::text, c.name, c.description, u.full_name as teacher_name "
-          << "FROM courses c "
-          << "JOIN user_courses uc ON c.id = uc.course_id "
-          << "LEFT JOIN users u ON c.teacher_id = u.id "
-          << "WHERE uc.user_id = '" << userId << "' AND c.is_deleted = FALSE";
-    
-    PGresult* result = PQexec(conn, query.str().c_str());
+    const char* paramValues[1];
+    paramValues[0] = userId.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT c.id::text, c.name, c.description, u.full_name as teacher_name "
+        "FROM courses c "
+        "JOIN user_courses uc ON c.id = uc.course_id "
+        "LEFT JOIN users u ON c.teacher_id = u.id "
+        "WHERE uc.user_id = $1 AND c.is_deleted = FALSE",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
     
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         res.status = 500;
@@ -343,14 +358,21 @@ void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res) {
     }
     
     // Получаем тесты пользователя (попытки прохождения тестов)
-    std::stringstream query;
-    query << "SELECT t.id::text, t.name, ta.score, ta.max_score, ta.status, ta.finished_at "
-          << "FROM test_attempts ta "
-          << "JOIN tests t ON ta.test_id = t.id "
-          << "WHERE ta.user_id = '" << userId << "' "
-          << "ORDER BY ta.started_at DESC";
-    
-    PGresult* result = PQexec(conn, query.str().c_str());
+    const char* paramValues[1];
+    paramValues[0] = userId.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT t.id::text, t.name, ta.score, ta.max_score, ta.status, ta.finished_at "
+        "FROM test_attempts ta "
+        "JOIN tests t ON ta.test_id = t.id "
+        "WHERE ta.user_id = $1 "
+        "ORDER BY ta.started_at DESC",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
     
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         res.status = 500;
@@ -398,6 +420,86 @@ void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
 
     if (!CheckAccess(ctx, "user:roles:write", res)) return;
     res.set_content("{\"status\": \"success\", \"message\": \"Roles updated\"}", "application/json");
+}
+
+void GetNotificationsHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = ctx.user_id.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT id::text, message, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    nlohmann::json arr = nlohmann::json::array();
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json item;
+        item["id"] = PQgetvalue(result, i, 0);
+        item["message"] = PQgetvalue(result, i, 1);
+        item["created_at"] = PQgetvalue(result, i, 2) ? PQgetvalue(result, i, 2) : "";
+        arr.push_back(item);
+    }
+    PQclear(result);
+    json_response["notifications"] = arr;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void ClearNotificationsHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = ctx.user_id.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "DELETE FROM notifications WHERE user_id = $1",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Delete failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
 }
 
 // ============================================================================
