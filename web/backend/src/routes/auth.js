@@ -73,19 +73,19 @@ router.get('/login/:type', async (req, res) => {
   }
 });
 
-// Колбэк от провайдера авторизации
+// Колбэк от провайдера авторизации (вызывается после редиректа от auth модуля)
 router.get('/callback', async (req, res) => {
-  const { code, state } = req.query;
+  const { token } = req.query; // token = loginToken из state
   const { sessionToken, userStatus, sessionData } = req;
   
-  console.log(`[AUTH CALLBACK] Код: ${code ? code.substring(0, 10) + '...' : 'нет'}, State: ${state}`);
+  console.log(`[AUTH CALLBACK] Token: ${token ? token.substring(0, 10) + '...' : 'нет'}`);
   
   if (userStatus === 'unknown') {
     return res.redirect('/');
   }
   
-  // Проверяем, что state совпадает с loginToken в сессии
-  const loginToken = sessionData?.loginToken || state;
+  // Проверяем, что token совпадает с loginToken в сессии
+  const loginToken = sessionData?.loginToken || token;
   
   if (!loginToken) {
     console.error('[AUTH CALLBACK] Нет loginToken в сессии');
@@ -143,6 +143,15 @@ router.get('/callback', async (req, res) => {
       message: `Не удалось проверить статус авторизации. ${error.message || 'Попробуйте позже.'}`
     });
   }
+});
+
+// Страница ошибки авторизации
+router.get('/error', (req, res) => {
+  const { message } = req.query;
+  res.render('error', {
+    title: 'Ошибка авторизации',
+    message: message || 'Произошла ошибка при авторизации. Попробуйте снова.'
+  });
 });
 
 // Проверка статуса авторизации (для AJAX)

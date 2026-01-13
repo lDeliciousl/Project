@@ -59,7 +59,7 @@ router.get('/', async (req, res) => {
     case 'unknown':
       // Показываем страницу авторизации
       res.render('login', {
-        title: 'Авторизация',
+        title: 'Вход в систему',
         authMethods: [
           { type: 'github', name: 'GitHub', icon: 'github' },
           { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
@@ -160,7 +160,38 @@ router.get('/', async (req, res) => {
 
 // Страница входа (без параметров)
 router.get('/login', (req, res) => {
-  res.redirect('/');
+  const { userStatus } = req;
+  
+  if (userStatus === 'authenticated') {
+    return res.redirect('/');
+  }
+  
+  res.render('login', {
+    title: 'Вход в систему',
+    authMethods: [
+      { type: 'github', name: 'GitHub', icon: 'github' },
+      { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
+      { type: 'code', name: 'Код авторизации', icon: 'key' }
+    ]
+  });
+});
+
+// Страница регистрации
+router.get('/register', (req, res) => {
+  const { userStatus } = req;
+  
+  if (userStatus === 'authenticated') {
+    return res.redirect('/');
+  }
+  
+  res.render('register', {
+    title: 'Регистрация',
+    authMethods: [
+      { type: 'github', name: 'GitHub', icon: 'github' },
+      { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
+      { type: 'code', name: 'Код авторизации', icon: 'key' }
+    ]
+  });
 });
 
 // Выход из системы

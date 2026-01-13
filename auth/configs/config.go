@@ -11,11 +11,12 @@ import (
 
 // Config хранит все настройки приложения
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	OAuth    OAuthConfig
+	Server      ServerConfig
+	Database    DatabaseConfig
+	Redis       RedisConfig
+	JWT         JWTConfig
+	OAuth       OAuthConfig
+	WebClientURL string
 }
 
 type ServerConfig struct {
@@ -104,6 +105,7 @@ func Load() error {
 				RedirectURL:  getEnv("YANDEX_REDIRECT_URL", "http://localhost:8001/api/auth/yandex/callback"),
 			},
 		},
+		WebClientURL: getEnv("WEB_CLIENT_URL", "http://localhost:8000"),
 	}
 
 	return nil

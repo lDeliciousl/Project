@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>Регистрация - <%= title %></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -51,50 +51,92 @@
             text-decoration: none;
             font-size: 16px;
             font-weight: 500;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
             cursor: pointer;
         }
         .auth-btn:hover {
             border-color: #667eea;
+            background: #f8f9ff;
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
         }
-        .auth-btn.github { border-color: #333; }
-        .auth-btn.yandex { border-color: #f00; }
-        .auth-btn.code { border-color: #4CAF50; }
-        .icon {
-            font-size: 20px;
-            width: 24px;
-            text-align: center;
+        .auth-btn.github {
+            border-color: #24292e;
         }
-        .footer {
-            margin-top: 30px;
+        .auth-btn.github:hover {
+            background: #24292e;
+            color: white;
+        }
+        .auth-btn.yandex {
+            border-color: #fc3f1d;
+        }
+        .auth-btn.yandex:hover {
+            background: #fc3f1d;
+            color: white;
+        }
+        .auth-btn.code {
+            border-color: #667eea;
+        }
+        .auth-btn.code:hover {
+            background: #667eea;
+            color: white;
+        }
+        .divider {
             text-align: center;
-            color: #888;
-            font-size: 12px;
+            margin: 25px 0;
+            color: #999;
+            font-size: 14px;
+            position: relative;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: #e0e0e0;
+        }
+        .divider::before {
+            left: 0;
+        }
+        .divider::after {
+            right: 0;
+        }
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .login-link a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
     <div class="auth-container">
-        <h1>Система тестирования</h1>
-        <p class="subtitle">Выберите способ входа в систему</p>
+        <h1>Регистрация</h1>
+        <p class="subtitle">Создайте аккаунт для доступа к системе</p>
         
         <div class="auth-methods">
             <% authMethods.forEach(method => { %>
                 <a href="/auth/login/<%= method.type %>" class="auth-btn <%= method.type %>">
-                    <span class="icon">
-                        <% if (method.type === 'github') { %>🐙<% } %>
-                        <% if (method.type === 'yandex') { %>Я<% } %>
-                        <% if (method.type === 'code') { %>🔑<% } %>
-                    </span>
-                    <span>Войти через <%= method.name %></span>
+                    <span>🔐</span>
+                    <span>Регистрация через <%= method.name %></span>
                 </a>
             <% }); %>
         </div>
         
-        <div class="footer" style="margin-top: 20px; text-align: center; font-size: 14px; color: #666;">
-            Нет аккаунта? <a href="/register" style="color: #667eea; text-decoration: none; font-weight: 500;">Зарегистрироваться</a>
+        <div class="divider">или</div>
+        
+        <div class="login-link">
+            Уже есть аккаунт? <a href="/login">Войти</a>
         </div>
     </div>
 </body>

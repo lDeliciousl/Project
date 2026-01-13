@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/configs"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/models"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/services"
 )
@@ -94,7 +96,7 @@ func (h *AuthHandler) VerifyAuth(c *gin.Context) {
 // @Param provider path string true "Провайдер (github, yandex)"
 // @Param code query string true "Код авторизации"
 // @Param state query string true "State (login_token)"
-// @Success 200
+// @Success 302
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/auth/{provider}/callback [get]
@@ -103,26 +105,44 @@ func (h *AuthHandler) OAuthCallback(c *gin.Context) {
 	code := c.Query("code")
 	state := c.Query("state")
 
-	if provider == "" || code == "" || state == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Error: "Provider, code and state are required",
-		})
+	// Получаем URL web клиента из конфигурации
+	webClientURL := "http://localhost:8000" // По умолчанию
+	if cfg := configs.AppConfig; cfg != nil {
+		webClientURL = cfg.WebClientURL
+	}
+
+	// Определяем провайдера, если параметр пути не заполнен
+	if provider == "" {
+		path := c.Request.URL.Path
+		if strings.Contains(path, "github") {
+			provider = "github"
+		} else if strings.Contains(path, "yandex") {
+			provider = "yandex"
+		}
+	}
+
+	// Если всё ещё не удалось определить провайдера – возвращаем понятную ошибку
+	if provider == "" {
+		c.Redirect(http.StatusFound, webClientURL+"/auth/error?message=Unknown+OAuth+provider")
+		return
+	}
+
+	if code == "" || state == "" {
+		// Редирект на страницу ошибки в web клиенте
+		c.Redirect(http.StatusFound, webClientURL+"/auth/error?message=Code and state are required")
 		return
 	}
 
 	err := h.authService.HandleOAuthCallback(c.Request.Context(), provider, code, state)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: err.Error(),
-		})
+		// Редирект на страницу ошибки в web клиенте
+		c.Redirect(http.StatusFound, webClientURL+"/auth/error?message="+err.Error())
 		return
 	}
 
-	// Редирект на страницу успеха (или можно вернуть JSON)
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Authorization successful",
-	})
+	// Редирект на web клиент с callback для проверки статуса
+	// Web клиент проверит статус через /api/auth/verify/{login_token}
+	c.Redirect(http.StatusFound, webClientURL+"/auth/callback?token="+state)
 }
 
 // RefreshToken обновляет токены
