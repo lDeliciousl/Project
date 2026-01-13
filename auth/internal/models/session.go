@@ -27,6 +27,7 @@ type LoginSession struct {
 	AccessToken  string             `bson:"access_token,omitempty" json:"access_token,omitempty"`
 	RefreshToken string             `bson:"refresh_token,omitempty" json:"refresh_token,omitempty"`
 	Code         string             `bson:"code,omitempty" json:"code,omitempty"` // Для типа "code"
+	CodeExpiresAt time.Time         `bson:"code_expires_at,omitempty" json:"code_expires_at,omitempty"`
 	ExpiresAt    time.Time          `bson:"expires_at" json:"expires_at"`
 	CreatedAt    time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt    time.Time          `bson:"updated_at" json:"updated_at"`
@@ -101,5 +102,5 @@ type GenerateCodeResponse struct {
 type VerifyCodeRequest struct {
 	LoginToken   string `json:"login_token" binding:"required"`
 	Code         string `json:"code" binding:"required"`
-	RefreshToken string `json:"refresh_token" binding:"required"` // По ТЗ: email извлекается из refresh токена
+	RefreshToken string `json:"refresh_token"` // Может использоваться как fallback, если email не сохранен в сессии
 }

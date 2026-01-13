@@ -99,18 +99,18 @@ router.get('/callback', async (req, res) => {
     // Проверяем статус авторизации через auth модуль
     const verifyResponse = await authApiClient.verifyLoginToken(loginToken);
     
-    if (verifyResponse && verifyResponse.status === 'authenticated') {
+    if (verifyResponse && verifyResponse.status === 'granted') {
       // Авторизация успешна, обновляем сессию
+      const userData = verifyResponse.user_data;
       await sessionManager.updateToAuthenticated(
         sessionToken,
         verifyResponse.access_token,
         verifyResponse.refresh_token,
-        verifyResponse.user || {
-          id: verifyResponse.user_id || `user_${Date.now()}`,
-          email: verifyResponse.email || 'unknown@example.com',
-          name: verifyResponse.name || 'Пользователь',
-          roles: verifyResponse.roles || ['student'],
-          permissions: verifyResponse.permissions || ['course:read', 'test:take']
+        userData || {
+          id: `user_${Date.now()}`,
+          email: 'unknown@example.com',
+          name: 'Пользователь',
+          roles: ['student']
         }
       );
       
@@ -131,6 +131,15 @@ router.get('/callback', async (req, res) => {
     } else {
       // Авторизация отклонена или ошибка
       console.error(`[AUTH CALLBACK] Статус авторизации: ${verifyResponse?.status || 'unknown'}`);
+
+      if (verifyResponse && (verifyResponse.status === 'denied' || verifyResponse.status === 'expired')) {
+        if (sessionToken) {
+          await sessionManager.deleteSession(sessionToken);
+        }
+        res.clearCookie('session_token');
+        return res.redirect('/');
+      }
+
       res.status(403).render('error', {
         title: 'Авторизация отклонена',
         message: verifyResponse?.message || 'Авторизация не была завершена. Попробуйте снова.'
@@ -163,18 +172,18 @@ router.get('/status', async (req, res) => {
     try {
       const verifyResponse = await authApiClient.verifyLoginToken(sessionData.loginToken);
       
-      if (verifyResponse && verifyResponse.status === 'authenticated') {
+      if (verifyResponse && verifyResponse.status === 'granted') {
         // Авторизация завершена, обновляем сессию
+        const userData = verifyResponse.user_data;
         await sessionManager.updateToAuthenticated(
           sessionToken,
           verifyResponse.access_token,
           verifyResponse.refresh_token,
-          verifyResponse.user || {
-            id: verifyResponse.user_id || `user_${Date.now()}`,
-            email: verifyResponse.email || 'unknown@example.com',
-            name: verifyResponse.name || 'Пользователь',
-            roles: verifyResponse.roles || ['student'],
-            permissions: verifyResponse.permissions || ['course:read', 'test:take']
+          userData || {
+            id: `user_${Date.now()}`,
+            email: 'unknown@example.com',
+            name: 'Пользователь',
+            roles: ['student']
           }
         );
         
@@ -194,6 +203,16 @@ router.get('/status', async (req, res) => {
       } else if (verifyResponse && verifyResponse.status === 'pending') {
         return res.json({
           status: 'anonymous',
+          data: null,
+          timestamp: new Date().toISOString()
+        });
+      } else if (verifyResponse && (verifyResponse.status === 'denied' || verifyResponse.status === 'expired')) {
+        if (sessionToken) {
+          await sessionManager.deleteSession(sessionToken);
+        }
+        res.clearCookie('session_token');
+        return res.json({
+          status: 'unknown',
           data: null,
           timestamp: new Date().toISOString()
         });

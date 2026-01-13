@@ -471,10 +471,19 @@ func (r *userRepository) UpsertByProvider(ctx context.Context, provider, provide
 		anonymousNumber := fmt.Sprintf("%d", now.UnixNano()%1000000)
 		user.Name = fmt.Sprintf("Аноним%s", anonymousNumber)
 		user.Roles = []string{"Студент"}
-		user.CreatedAt = now
 	}
 
-	user.UpdatedAt = now
+	// ВАЖНО: created_at нельзя обновлять через $set, иначе будет конфликт с $setOnInsert
+	// Поэтому формируем $set явно, без created_at.
+	setUpdate := bson.M{
+		"email":       user.Email,
+		"name":        user.Name,
+		"roles":       user.Roles,
+		"avatar_url":  user.AvatarURL,
+		"provider":    provider,
+		"provider_id": providerID,
+		"updated_at":  now,
+	}
 
 	opts := options.FindOneAndUpdate().
 		SetUpsert(true).
@@ -488,8 +497,12 @@ func (r *userRepository) UpsertByProvider(ctx context.Context, provider, provide
 			"provider_id": providerID,
 		},
 		bson.M{
-			"$set":         user,
-			"$setOnInsert": bson.M{"created_at": now},
+			"$set": setUpdate,
+			"$setOnInsert": bson.M{
+				"created_at": now,
+				"blocked":    false,
+				"is_active":  true,
+			},
 		},
 		opts,
 	).Decode(&result)

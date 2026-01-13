@@ -161,6 +161,9 @@ services:
       - YANDEX_CLIENT_SECRET=7a49fc5b5d09484a8b45108ae371cd5b
       - JWT_ACCESS_SECRET=N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=
       - JWT_REFRESH_SECRET=KkpknwpRk1ZK/AaFLJ0bU54Z3G0fWwRj5GPHWlfwKM8=
+      - WEB_CLIENT_URL=http://localhost:8000
+      - GITHUB_REDIRECT_URL=http://localhost:8001/api/auth/github/callback
+      - YANDEX_REDIRECT_URL=http://localhost:8001/api/auth/yandex/callback
     depends_on:
       auth-mongo:
         condition: service_healthy

@@ -17,7 +17,7 @@ type SessionRepository interface {
 	FindByLoginToken(ctx context.Context, loginToken string) (*models.LoginSession, error)
 	UpdateStatus(ctx context.Context, loginToken string, status models.SessionStatus) error
 	UpdateTokens(ctx context.Context, loginToken, accessToken, refreshToken string, userID primitive.ObjectID) error
-	SetCode(ctx context.Context, loginToken, code string) error
+	SetCode(ctx context.Context, loginToken, code, email string, codeExpiresAt time.Time) error
 	CleanupExpired(ctx context.Context) error
 }
 
@@ -98,14 +98,16 @@ func (r *sessionRepository) UpdateTokens(ctx context.Context, loginToken, access
 	return err
 }
 
-func (r *sessionRepository) SetCode(ctx context.Context, loginToken, code string) error {
+func (r *sessionRepository) SetCode(ctx context.Context, loginToken, code, email string, codeExpiresAt time.Time) error {
 	_, err := r.collection.UpdateOne(
 		ctx,
 		bson.M{"login_token": loginToken},
 		bson.M{
 			"$set": bson.M{
-				"code":       code,
-				"updated_at": time.Now(),
+				"code":            code,
+				"code_expires_at": codeExpiresAt,
+				"provider_data":   bson.M{"email": email},
+				"updated_at":      time.Now(),
 			},
 		},
 	)

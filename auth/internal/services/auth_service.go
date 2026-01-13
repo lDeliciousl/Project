@@ -116,6 +116,11 @@ func (s *authService) HandleOAuthCallback(ctx context.Context, providerType, cod
 	}
 
 	if session.Status != models.StatusPending {
+		// Повторный callback или гонка запросов.
+		// Если уже выдали токены — считаем успешным и ничего не делаем.
+		if session.Status == models.StatusGranted {
+			return nil
+		}
 		return fmt.Errorf("session status is %s, expected pending", session.Status)
 	}
 
@@ -189,7 +194,8 @@ func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email st
 	code := generateRandomCode(6)
 
 	// Сохраняем код в сессии
-	err = s.sessionRepo.SetCode(ctx, loginToken, code)
+	codeExpiresAt := time.Now().Add(s.codeExpiry)
+	err = s.sessionRepo.SetCode(ctx, loginToken, code, email, codeExpiresAt)
 	if err != nil {
 		return "", fmt.Errorf("failed to set code: %w", err)
 	}
@@ -218,10 +224,24 @@ func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code, refr
 		return errors.New("invalid code")
 	}
 
-	// Извлекаем email из refresh токена (по ТЗ)
-	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
-	if err != nil {
-		return fmt.Errorf("invalid refresh token: %w", err)
+	if !session.CodeExpiresAt.IsZero() && time.Now().After(session.CodeExpiresAt) {
+		return errors.New("code expired")
+	}
+
+	email := ""
+	if session.ProviderData != nil {
+		email = session.ProviderData["email"]
+	}
+	if email == "" && refreshToken != "" {
+		// fallback: если клиент все же прислал refresh token
+		fallbackEmail, err := s.jwtService.ValidateRefreshToken(refreshToken)
+		if err != nil {
+			return fmt.Errorf("invalid refresh token: %w", err)
+		}
+		email = fallbackEmail
+	}
+	if email == "" {
+		return errors.New("email not found for code auth")
 	}
 
 	// Создаем или находим пользователя
@@ -329,14 +349,41 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
 
-	// Находим пользователя
-	user, err := s.userRepo.FindByEmail(ctx, email)
+	// Находим пользователя по refresh токену (обязательная проверка наличия токена в БД)
+	user, err := s.userRepo.FindByRefreshToken(ctx, refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
 	if user == nil {
 		return nil, errors.New("user not found")
+	}
+
+	if user.Email != email {
+		return nil, errors.New("refresh token does not belong to user")
+	}
+
+	if !user.IsActive {
+		return nil, errors.New("user account is inactive")
+	}
+
+	if user.Blocked {
+		return nil, errors.New("user account is blocked")
+	}
+
+	// Проверяем что refresh токен не истек (TTL индекс чистит не мгновенно)
+	valid := false
+	for _, t := range user.RefreshTokens {
+		if t.Token == refreshToken {
+			if time.Now().After(t.ExpiresAt) {
+				return nil, errors.New("refresh token expired")
+			}
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return nil, errors.New("refresh token not found in database")
 	}
 
 	// Генерируем новые токены
@@ -352,6 +399,20 @@ func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*
 	newRefreshToken, err := s.jwtService.GenerateRefreshToken(user.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Отзываем старый refresh токен
+	_ = s.userRepo.RemoveRefreshToken(ctx, user.ID, refreshToken)
+
+	// Сохраняем новый refresh токен
+	refreshTokenModel := models.RefreshToken{
+		Token:     newRefreshToken,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	err = s.userRepo.AddRefreshToken(ctx, user.ID, refreshTokenModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save refresh token: %w", err)
 	}
 
 	return &models.TokenPair{
@@ -371,10 +432,12 @@ func (s *authService) Logout(ctx context.Context, refreshToken string) error {
 		return nil
 	}
 
-	// TODO: Здесь можно добавить логику для инвалидации токена
-	// Например, добавить токен в черный список
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil || user == nil {
+		return nil
+	}
 
-	_ = email // Пока не используем
+	_ = s.userRepo.RemoveRefreshToken(ctx, user.ID, refreshToken)
 
 	return nil
 }
