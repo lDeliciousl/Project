@@ -52,8 +52,41 @@ void GetUserTestsHandler(const httplib::Request& req, httplib::Response& res);
 void GetUserRolesHandler(const httplib::Request& req, httplib::Response& res);
 void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res);
 
+void GetUserBlockedHandler(const httplib::Request& req, httplib::Response& res);
+void SetUserBlockedHandler(const httplib::Request& req, httplib::Response& res);
+
 void GetNotificationsHandler(const httplib::Request& req, httplib::Response& res);
 void ClearNotificationsHandler(const httplib::Request& req, httplib::Response& res);
+
+// Courses API
+void GetCoursesListHandler(const httplib::Request& req, httplib::Response& res);
+void GetCourseInfoHandler(const httplib::Request& req, httplib::Response& res);
+void CreateCourseHandler(const httplib::Request& req, httplib::Response& res);
+void UpdateCourseHandler(const httplib::Request& req, httplib::Response& res);
+void DeleteCourseHandler(const httplib::Request& req, httplib::Response& res);
+void GetCourseStudentsHandler(const httplib::Request& req, httplib::Response& res);
+void GetCourseTestsHandler(const httplib::Request& req, httplib::Response& res);
+void EnrollUserHandler(const httplib::Request& req, httplib::Response& res);
+void UnenrollUserHandler(const httplib::Request& req, httplib::Response& res);
+
+// Test activation
+void ActivateTestHandler(const httplib::Request& req, httplib::Response& res);
+
+// Questions API
+void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res);
+void GetQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void UpdateQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res);
+
+// Test questions management
+void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& res);
+void RemoveQuestionFromTestHandler(const httplib::Request& req, httplib::Response& res);
+
+// Attempts API
+void GetAttemptHandler(const httplib::Request& req, httplib::Response& res);
+void FinishAttemptHandler(const httplib::Request& req, httplib::Response& res);
+void UpdateAnswerHandler(const httplib::Request& req, httplib::Response& res);
 
 // ============================================================================
 // ПРОСТЫЕ ОБРАБОТЧИКИ

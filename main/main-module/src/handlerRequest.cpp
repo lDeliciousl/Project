@@ -422,6 +422,102 @@ void SetUserRolesHandler(const httplib::Request& req, httplib::Response& res) {
     res.set_content("{\"status\": \"success\", \"message\": \"Roles updated\"}", "application/json");
 }
 
+void GetUserBlockedHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string userId = matchToString(req.matches, 1);
+    std::cout << "[GetUserBlockedHandler] Called for user: " << userId << std::endl;
+
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "user:block:read", res)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = userId.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "SELECT id::text, is_blocked FROM users WHERE id = $1",
+        1,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"User not found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    std::string v = PQgetvalue(result, 0, 1);
+    const bool is_blocked = (v == "t" || v == "true" || v == "1");
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["is_blocked"] = is_blocked;
+    PQclear(result);
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void SetUserBlockedHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string userId = matchToString(req.matches, 1);
+    std::cout << "[SetUserBlockedHandler] Called for user: " << userId << std::endl;
+
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "user:block:write", res)) return;
+
+    bool is_blocked = false;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        is_blocked = body.at("is_blocked").get<bool>();
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    std::string blocked_str = is_blocked ? "true" : "false";
+    const char* paramValues[2];
+    paramValues[0] = blocked_str.c_str();
+    paramValues[1] = userId.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "UPDATE users SET is_blocked = $1 WHERE id = $2",
+        2,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
 void GetNotificationsHandler(const httplib::Request& req, httplib::Response& res) {
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
@@ -759,4 +855,1208 @@ void GetTestsHandler(const httplib::Request& req, httplib::Response& res) {
     response["tests"] = tests_arr;
     
     res.set_content(response.dump(), "application/json");
+}
+
+// ============================================================================
+// COURSES API
+// ============================================================================
+
+void GetCoursesListHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    PGresult* result = PQexec(conn, 
+        "SELECT c.id::text, c.name, c.description, c.teacher_id::text, u.full_name as teacher_name "
+        "FROM courses c "
+        "LEFT JOIN users u ON c.teacher_id = u.id "
+        "WHERE c.is_deleted = FALSE "
+        "ORDER BY c.name");
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    nlohmann::json arr = nlohmann::json::array();
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json item;
+        item["id"] = PQgetvalue(result, i, 0);
+        item["name"] = PQgetvalue(result, i, 1);
+        item["description"] = PQgetvalue(result, i, 2) ? PQgetvalue(result, i, 2) : "";
+        item["teacher_id"] = PQgetvalue(result, i, 3) ? PQgetvalue(result, i, 3) : "";
+        item["teacher_name"] = PQgetvalue(result, i, 4) ? PQgetvalue(result, i, 4) : "";
+        arr.push_back(item);
+    }
+    PQclear(result);
+    json_response["courses"] = arr;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void GetCourseInfoHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT c.id::text, c.name, c.description, c.teacher_id::text, u.full_name as teacher_name "
+        "FROM courses c "
+        "LEFT JOIN users u ON c.teacher_id = u.id "
+        "WHERE c.id = $1 AND c.is_deleted = FALSE",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Course not found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["name"] = PQgetvalue(result, 0, 1);
+    json_response["description"] = PQgetvalue(result, 0, 2) ? PQgetvalue(result, 0, 2) : "";
+    json_response["teacher_id"] = PQgetvalue(result, 0, 3) ? PQgetvalue(result, 0, 3) : "";
+    json_response["teacher_name"] = PQgetvalue(result, 0, 4) ? PQgetvalue(result, 0, 4) : "";
+    PQclear(result);
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void CreateCourseHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "course:add", res)) return;
+
+    std::string name, description, teacher_id;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        name = body.at("name").get<std::string>();
+        description = body.value("description", "");
+        teacher_id = body.value("teacher_id", ctx.user_id);
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[3];
+    paramValues[0] = name.c_str();
+    paramValues[1] = description.c_str();
+    paramValues[2] = teacher_id.c_str();
+    PGresult* result = PQexecParams(conn,
+        "INSERT INTO courses (name, description, teacher_id) VALUES ($1, $2, $3) RETURNING id::text",
+        3, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Insert failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    json_response["status"] = "success";
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    PQclear(result);
+    res.status = 201;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void UpdateCourseHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = courseId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT teacher_id::text FROM courses WHERE id = $1 AND is_deleted = FALSE",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Course not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "course:info:write", res)) return;
+    }
+
+    std::string name, description;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        name = body.value("name", "");
+        description = body.value("description", "");
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    std::string query = "UPDATE courses SET ";
+    std::vector<std::string> updates;
+    std::vector<const char*> paramValues;
+    int paramIndex = 1;
+
+    std::string nameParam, descParam;
+    if (!name.empty()) {
+        nameParam = name;
+        updates.push_back("name = $" + std::to_string(paramIndex++));
+        paramValues.push_back(nameParam.c_str());
+    }
+    if (!description.empty()) {
+        descParam = description;
+        updates.push_back("description = $" + std::to_string(paramIndex++));
+        paramValues.push_back(descParam.c_str());
+    }
+
+    if (updates.empty()) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Nothing to update\"}", "application/json");
+        return;
+    }
+
+    for (size_t i = 0; i < updates.size(); i++) {
+        query += updates[i];
+        if (i < updates.size() - 1) query += ", ";
+    }
+    query += " WHERE id = $" + std::to_string(paramIndex);
+    paramValues.push_back(courseId.c_str());
+
+    PGresult* result = PQexecParams(conn, query.c_str(),
+        static_cast<int>(paramValues.size()), nullptr, paramValues.data(), nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void DeleteCourseHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = courseId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT teacher_id::text FROM courses WHERE id = $1 AND is_deleted = FALSE",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Course not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "course:del", res)) return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE courses SET is_deleted = TRUE WHERE id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Delete failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void GetCourseStudentsHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = courseId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT teacher_id::text FROM courses WHERE id = $1 AND is_deleted = FALSE",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Course not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "course:userList", res)) return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT u.id::text, u.full_name, u.email FROM users u "
+        "JOIN user_courses uc ON u.id = uc.user_id "
+        "WHERE uc.course_id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    nlohmann::json arr = nlohmann::json::array();
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json item;
+        item["id"] = PQgetvalue(result, i, 0);
+        item["name"] = PQgetvalue(result, i, 1) ? PQgetvalue(result, i, 1) : "";
+        item["email"] = PQgetvalue(result, i, 2);
+        arr.push_back(item);
+    }
+    PQclear(result);
+    json_response["students"] = arr;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void GetCourseTestsHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[2];
+    checkParams[0] = courseId.c_str();
+    checkParams[1] = ctx.user_id.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text, "
+        "(SELECT COUNT(*) > 0 FROM user_courses uc WHERE uc.course_id = c.id AND uc.user_id = $2) as enrolled "
+        "FROM courses c WHERE c.id = $1 AND c.is_deleted = FALSE",
+        2, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Course not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    std::string enrolled = PQgetvalue(checkResult, 0, 1);
+    PQclear(checkResult);
+
+    bool isTeacher = (ctx.user_id == teacher_id);
+    bool isEnrolled = (enrolled == "t" || enrolled == "true");
+
+    if (!isTeacher && !isEnrolled) {
+        if (!CheckAccess(ctx, "course:testList", res)) return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT id::text, name, is_active FROM tests WHERE course_id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    nlohmann::json arr = nlohmann::json::array();
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json item;
+        item["id"] = PQgetvalue(result, i, 0);
+        item["name"] = PQgetvalue(result, i, 1);
+        std::string active = PQgetvalue(result, i, 2);
+        item["is_active"] = (active == "t" || active == "true");
+        arr.push_back(item);
+    }
+    PQclear(result);
+    json_response["tests"] = arr;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void EnrollUserHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    std::string targetUserId = ctx.user_id;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        targetUserId = body.value("user_id", ctx.user_id);
+    } catch (...) {}
+
+    if (targetUserId != ctx.user_id) {
+        if (!CheckAccess(ctx, "course:user:add", res)) return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[2];
+    paramValues[0] = targetUserId.c_str();
+    paramValues[1] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "INSERT INTO user_courses (user_id, course_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Enrollment failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void UnenrollUserHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string courseId = matchToString(req.matches, 1);
+    std::string targetUserId = matchToString(req.matches, 2);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (targetUserId != ctx.user_id) {
+        if (!CheckAccess(ctx, "course:user:del", res)) return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[2];
+    paramValues[0] = targetUserId.c_str();
+    paramValues[1] = courseId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "DELETE FROM user_courses WHERE user_id = $1 AND course_id = $2",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Unenrollment failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void ActivateTestHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string testId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    bool is_active = true;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        is_active = body.at("is_active").get<bool>();
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = testId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text FROM tests t "
+        "JOIN courses c ON t.course_id = c.id "
+        "WHERE t.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Test not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "course:test:write", res)) return;
+    }
+
+    std::string activeStr = is_active ? "true" : "false";
+    const char* paramValues[2];
+    paramValues[0] = activeStr.c_str();
+    paramValues[1] = testId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE tests SET is_active = $1 WHERE id = $2",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    if (!is_active) {
+        const char* finishParams[1];
+        finishParams[0] = testId.c_str();
+        PGresult* finishResult = PQexecParams(conn,
+            "UPDATE test_attempts SET status = 'completed', finished_at = NOW() "
+            "WHERE test_id = $1 AND status = 'in_progress'",
+            1, nullptr, finishParams, nullptr, nullptr, 0);
+        PQclear(finishResult);
+    }
+
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+// ============================================================================
+// QUESTIONS API
+// ============================================================================
+
+void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = ctx.user_id.c_str();
+
+    bool hasPermission = std::find(ctx.permissions.begin(), ctx.permissions.end(), "quest:list:read") != ctx.permissions.end();
+
+    PGresult* result;
+    if (hasPermission) {
+        result = PQexec(conn,
+            "SELECT q.id::text, q.text, q.question_type FROM questions q ORDER BY q.created_at DESC");
+    } else {
+        result = PQexecParams(conn,
+            "SELECT DISTINCT q.id::text, q.text, q.question_type "
+            "FROM questions q "
+            "JOIN tests t ON q.test_id = t.id "
+            "JOIN courses c ON t.course_id = c.id "
+            "WHERE c.teacher_id = $1",
+            1, nullptr, paramValues, nullptr, nullptr, 0);
+    }
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    nlohmann::json arr = nlohmann::json::array();
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json item;
+        item["id"] = PQgetvalue(result, i, 0);
+        item["text"] = PQgetvalue(result, i, 1);
+        item["type"] = PQgetvalue(result, i, 2) ? PQgetvalue(result, i, 2) : "";
+        arr.push_back(item);
+    }
+    PQclear(result);
+    json_response["questions"] = arr;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void GetQuestionHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string questionId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = questionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT q.id::text, q.text, q.question_type, q.points, q.test_id::text "
+        "FROM questions q WHERE q.id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Question not found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["text"] = PQgetvalue(result, 0, 1);
+    json_response["type"] = PQgetvalue(result, 0, 2);
+    json_response["points"] = std::stoi(PQgetvalue(result, 0, 3));
+    json_response["test_id"] = PQgetvalue(result, 0, 4) ? PQgetvalue(result, 0, 4) : "";
+    PQclear(result);
+
+    paramValues[0] = questionId.c_str();
+    PGresult* optResult = PQexecParams(conn,
+        "SELECT id::text, text, is_correct FROM question_options WHERE question_id = $1 ORDER BY order_number",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    nlohmann::json options = nlohmann::json::array();
+    if (PQresultStatus(optResult) == PGRES_TUPLES_OK) {
+        int rows = PQntuples(optResult);
+        for (int i = 0; i < rows; i++) {
+            nlohmann::json opt;
+            opt["id"] = PQgetvalue(optResult, i, 0);
+            opt["text"] = PQgetvalue(optResult, i, 1);
+            std::string correct = PQgetvalue(optResult, i, 2);
+            opt["is_correct"] = (correct == "t" || correct == "true");
+            options.push_back(opt);
+        }
+    }
+    PQclear(optResult);
+    json_response["options"] = options;
+
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res) {
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    if (!CheckAccess(ctx, "quest:create", res)) return;
+
+    std::string text, type;
+    int points = 1;
+    nlohmann::json options_json;
+
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        text = body.at("text").get<std::string>();
+        type = body.value("type", "single_choice");
+        points = body.value("points", 1);
+        if (body.contains("options")) {
+            options_json = body["options"];
+        }
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    std::string pointsStr = std::to_string(points);
+    const char* paramValues[3];
+    paramValues[0] = text.c_str();
+    paramValues[1] = type.c_str();
+    paramValues[2] = pointsStr.c_str();
+
+    PGresult* result = PQexecParams(conn,
+        "INSERT INTO questions (text, question_type, points) VALUES ($1, $2, $3) RETURNING id::text",
+        3, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Insert failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    std::string questionId = PQgetvalue(result, 0, 0);
+    PQclear(result);
+
+    if (options_json.is_array()) {
+        int orderNum = 0;
+        for (const auto& opt : options_json) {
+            std::string optText = opt.at("text").get<std::string>();
+            bool isCorrect = opt.value("is_correct", false);
+            std::string correctStr = isCorrect ? "true" : "false";
+            std::string orderStr = std::to_string(orderNum++);
+
+            const char* optParams[4];
+            optParams[0] = questionId.c_str();
+            optParams[1] = optText.c_str();
+            optParams[2] = correctStr.c_str();
+            optParams[3] = orderStr.c_str();
+
+            PGresult* optResult = PQexecParams(conn,
+                "INSERT INTO question_options (question_id, text, is_correct, order_number) VALUES ($1, $2, $3, $4)",
+                4, nullptr, optParams, nullptr, nullptr, 0);
+            PQclear(optResult);
+        }
+    }
+
+    nlohmann::json json_response;
+    json_response["status"] = "success";
+    json_response["id"] = questionId;
+    res.status = 201;
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void UpdateQuestionHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string questionId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = questionId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text FROM questions q "
+        "JOIN tests t ON q.test_id = t.id "
+        "JOIN courses c ON t.course_id = c.id "
+        "WHERE q.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    bool isOwner = false;
+    if (PQresultStatus(checkResult) == PGRES_TUPLES_OK && PQntuples(checkResult) > 0) {
+        std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+        isOwner = (ctx.user_id == teacher_id);
+    }
+    PQclear(checkResult);
+
+    if (!isOwner) {
+        if (!CheckAccess(ctx, "quest:update", res)) return;
+    }
+
+    std::string text;
+    nlohmann::json options_json;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        text = body.value("text", "");
+        if (body.contains("options")) {
+            options_json = body["options"];
+        }
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    if (!text.empty()) {
+        const char* updateParams[2];
+        updateParams[0] = text.c_str();
+        updateParams[1] = questionId.c_str();
+        PGresult* updateResult = PQexecParams(conn,
+            "UPDATE questions SET text = $1 WHERE id = $2",
+            2, nullptr, updateParams, nullptr, nullptr, 0);
+        PQclear(updateResult);
+    }
+
+    if (options_json.is_array()) {
+        const char* delParams[1];
+        delParams[0] = questionId.c_str();
+        PGresult* delResult = PQexecParams(conn,
+            "DELETE FROM question_options WHERE question_id = $1",
+            1, nullptr, delParams, nullptr, nullptr, 0);
+        PQclear(delResult);
+
+        int orderNum = 0;
+        for (const auto& opt : options_json) {
+            std::string optText = opt.at("text").get<std::string>();
+            bool isCorrect = opt.value("is_correct", false);
+            std::string correctStr = isCorrect ? "true" : "false";
+            std::string orderStr = std::to_string(orderNum++);
+
+            const char* optParams[4];
+            optParams[0] = questionId.c_str();
+            optParams[1] = optText.c_str();
+            optParams[2] = correctStr.c_str();
+            optParams[3] = orderStr.c_str();
+
+            PGresult* optResult = PQexecParams(conn,
+                "INSERT INTO question_options (question_id, text, is_correct, order_number) VALUES ($1, $2, $3, $4)",
+                4, nullptr, optParams, nullptr, nullptr, 0);
+            PQclear(optResult);
+        }
+    }
+
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string questionId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = questionId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text FROM questions q "
+        "JOIN tests t ON q.test_id = t.id "
+        "JOIN courses c ON t.course_id = c.id "
+        "WHERE q.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    bool isOwner = false;
+    if (PQresultStatus(checkResult) == PGRES_TUPLES_OK && PQntuples(checkResult) > 0) {
+        std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+        isOwner = (ctx.user_id == teacher_id);
+    }
+    PQclear(checkResult);
+
+    if (!isOwner) {
+        if (!CheckAccess(ctx, "quest:del", res)) return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = questionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "DELETE FROM questions WHERE id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Delete failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string testId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    std::string questionId;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        questionId = body.at("question_id").get<std::string>();
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = testId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text FROM tests t "
+        "JOIN courses c ON t.course_id = c.id WHERE t.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Test not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "test:quest:add", res)) return;
+    }
+
+    const char* paramValues[2];
+    paramValues[0] = testId.c_str();
+    paramValues[1] = questionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE questions SET test_id = $1 WHERE id = $2",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void RemoveQuestionFromTestHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string testId = matchToString(req.matches, 1);
+    std::string questionId = matchToString(req.matches, 2);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = testId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT c.teacher_id::text FROM tests t "
+        "JOIN courses c ON t.course_id = c.id WHERE t.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Test not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string teacher_id = PQgetvalue(checkResult, 0, 0);
+    PQclear(checkResult);
+
+    if (ctx.user_id != teacher_id) {
+        if (!CheckAccess(ctx, "test:quest:del", res)) return;
+    }
+
+    const char* paramValues[2];
+    paramValues[0] = testId.c_str();
+    paramValues[1] = questionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE questions SET test_id = NULL WHERE test_id = $1 AND id = $2",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+// ============================================================================
+// ATTEMPTS API
+// ============================================================================
+
+void GetAttemptHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string attemptId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = attemptId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT ta.id::text, ta.test_id::text, ta.user_id::text, ta.status, ta.score, ta.max_score, "
+        "c.teacher_id::text "
+        "FROM test_attempts ta "
+        "JOIN tests t ON ta.test_id = t.id "
+        "JOIN courses c ON t.course_id = c.id "
+        "WHERE ta.id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Attempt not found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    std::string attemptUserId = PQgetvalue(result, 0, 2);
+    std::string teacherId = PQgetvalue(result, 0, 6);
+
+    if (ctx.user_id != attemptUserId && ctx.user_id != teacherId) {
+        if (!CheckAccess(ctx, "test:answer:read", res)) {
+            PQclear(result);
+            return;
+        }
+    }
+
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["test_id"] = PQgetvalue(result, 0, 1);
+    json_response["user_id"] = PQgetvalue(result, 0, 2);
+    json_response["status"] = PQgetvalue(result, 0, 3);
+    json_response["score"] = PQgetvalue(result, 0, 4) ? std::stoi(PQgetvalue(result, 0, 4)) : 0;
+    json_response["max_score"] = PQgetvalue(result, 0, 5) ? std::stoi(PQgetvalue(result, 0, 5)) : 0;
+    PQclear(result);
+
+    paramValues[0] = attemptId.c_str();
+    PGresult* answersResult = PQexecParams(conn,
+        "SELECT aa.id::text, aa.question_id::text, aa.option_id::text, aa.is_correct "
+        "FROM attempt_answers aa WHERE aa.attempt_id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    nlohmann::json answers = nlohmann::json::array();
+    if (PQresultStatus(answersResult) == PGRES_TUPLES_OK) {
+        int rows = PQntuples(answersResult);
+        for (int i = 0; i < rows; i++) {
+            nlohmann::json ans;
+            ans["id"] = PQgetvalue(answersResult, i, 0);
+            ans["question_id"] = PQgetvalue(answersResult, i, 1);
+            ans["option_id"] = PQgetvalue(answersResult, i, 2) ? PQgetvalue(answersResult, i, 2) : "";
+            std::string correct = PQgetvalue(answersResult, i, 3) ? PQgetvalue(answersResult, i, 3) : "";
+            ans["is_correct"] = (correct == "t" || correct == "true");
+            answers.push_back(ans);
+        }
+    }
+    PQclear(answersResult);
+    json_response["answers"] = answers;
+
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void FinishAttemptHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string attemptId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = attemptId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT user_id::text, status FROM test_attempts WHERE id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Attempt not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string attemptUserId = PQgetvalue(checkResult, 0, 0);
+    std::string status = PQgetvalue(checkResult, 0, 1);
+    PQclear(checkResult);
+
+    if (ctx.user_id != attemptUserId) {
+        res.status = 403;
+        res.set_content("{\"error\": \"Forbidden\"}", "application/json");
+        return;
+    }
+
+    if (status == "completed") {
+        res.status = 400;
+        res.set_content("{\"error\": \"Attempt already completed\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[1];
+    paramValues[0] = attemptId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE test_attempts SET status = 'completed', finished_at = NOW() WHERE id = $1",
+        1, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
+}
+
+void UpdateAnswerHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string attemptId = matchToString(req.matches, 1);
+    std::string answerId = matchToString(req.matches, 2);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    std::string optionId;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        optionId = body.at("option_id").get<std::string>();
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    const char* checkParams[1];
+    checkParams[0] = attemptId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT user_id::text, status FROM test_attempts WHERE id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Attempt not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string attemptUserId = PQgetvalue(checkResult, 0, 0);
+    std::string status = PQgetvalue(checkResult, 0, 1);
+    PQclear(checkResult);
+
+    if (ctx.user_id != attemptUserId) {
+        res.status = 403;
+        res.set_content("{\"error\": \"Forbidden\"}", "application/json");
+        return;
+    }
+
+    if (status == "completed") {
+        res.status = 400;
+        res.set_content("{\"error\": \"Attempt already completed\"}", "application/json");
+        return;
+    }
+
+    const char* paramValues[2];
+    paramValues[0] = optionId.c_str();
+    paramValues[1] = answerId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE attempt_answers SET option_id = $1 WHERE id = $2",
+        2, nullptr, paramValues, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+    res.set_content("{\"status\": \"success\"}", "application/json");
 }

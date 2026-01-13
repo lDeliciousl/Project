@@ -52,8 +52,41 @@ int main() {
     server.Get(R"(/api/db/users/([^/]+)/roles)", GetUserRoles);    // Посмотреть информацию о пользователе (роли)
     server.Put(R"(/api/db/users/([^/]+)/roles)", SetUserRoles);    // Изменить роли пользователя
 
+    server.Get(R"(/api/db/users/([^/]+)/block)", GetUserBlockedHandler);
+    server.Put(R"(/api/db/users/([^/]+)/block)", SetUserBlockedHandler);
+
     server.Get("/notification", GetNotificationsHandler);
     server.Delete("/notification", ClearNotificationsHandler);
+
+    // Courses API
+    server.Get("/api/courses", GetCoursesListHandler);
+    server.Get(R"(/api/courses/([^/]+))", GetCourseInfoHandler);
+    server.Post("/api/courses", CreateCourseHandler);
+    server.Put(R"(/api/courses/([^/]+))", UpdateCourseHandler);
+    server.Delete(R"(/api/courses/([^/]+))", DeleteCourseHandler);
+    server.Get(R"(/api/courses/([^/]+)/students)", GetCourseStudentsHandler);
+    server.Get(R"(/api/courses/([^/]+)/tests)", GetCourseTestsHandler);
+    server.Post(R"(/api/courses/([^/]+)/enroll)", EnrollUserHandler);
+    server.Delete(R"(/api/courses/([^/]+)/enroll/([^/]+))", UnenrollUserHandler);
+
+    // Test activation
+    server.Put(R"(/api/tests/([^/]+)/activate)", ActivateTestHandler);
+
+    // Questions API
+    server.Get("/api/questions", GetQuestionsListHandler);
+    server.Get(R"(/api/questions/([^/]+))", GetQuestionHandler);
+    server.Post("/api/questions", CreateQuestionHandler);
+    server.Put(R"(/api/questions/([^/]+))", UpdateQuestionHandler);
+    server.Delete(R"(/api/questions/([^/]+))", DeleteQuestionHandler);
+
+    // Test questions management
+    server.Post(R"(/api/tests/([^/]+)/questions)", AddQuestionToTestHandler);
+    server.Delete(R"(/api/tests/([^/]+)/questions/([^/]+))", RemoveQuestionFromTestHandler);
+
+    // Attempts API
+    server.Get(R"(/api/attempts/([^/]+))", GetAttemptHandler);
+    server.Post(R"(/api/attempts/([^/]+)/finish)", FinishAttemptHandler);
+    server.Put(R"(/api/attempts/([^/]+)/answers/([^/]+))", UpdateAnswerHandler);
     
     // Получаем порт из конфигурации или используем значение по умолчанию
     std::string port_str = config.get("server.port", "3002");

@@ -1,10 +1,9 @@
-xversion: '3.8'
+version: '3.8'
 
 services:
   # База данных
   main-postgres:
     image: postgres:15-alpine
-    container_name: testing-main-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: testing_system
@@ -26,7 +25,6 @@ services:
     build:
       context: ./main-module
       dockerfile: Dockerfile
-    container_name: testing-main-module
     restart: unless-stopped
     ports:
       - "3002:3002"
