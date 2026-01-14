@@ -93,7 +93,7 @@ services:
       DB_USER: main_module
       DB_PASSWORD: secret123
       SERVER_PORT: 3002
-      JWT_SECRET: test_secret
+      JWT_SECRET: "N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8="
       NODE_ENV: production
     depends_on:
       main-postgres:

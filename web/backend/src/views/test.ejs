@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= test.name %> - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 80px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon {
+            font-size: 28px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #667eea;
+        }
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+            text-align: right;
+        }
+        .user-email {
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        .logout-btn:hover {
+            background: #ff3742;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .test-header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .test-title {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .test-description {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .test-meta {
+            display: flex;
+            gap: 20px;
+            color: #888;
+            font-size: 14px;
+        }
+        .question-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .question-number {
+            color: #667eea;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .question-text {
+            font-size: 18px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .question-points {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 15px;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .option {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .option:hover {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        .option.selected {
+            border-color: #667eea;
+            background: #e8ecff;
+        }
+        .option input {
+            margin-right: 15px;
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+        }
+        .option label {
+            cursor: pointer;
+            flex: 1;
+        }
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+        .btn {
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #218838;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s;
+        }
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .result-card {
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .result-score {
+            font-size: 64px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        .result-message {
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .hidden { display: none; }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px 20px;
+            }
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">
+            <span class="logo-icon">📚</span>
+            <span>Система тестирования</span>
+        </a>
+        <div class="user-info">
+            <div class="avatar">
+                <%= user.avatarLetter || (user.name ? user.name.charAt(0).toUpperCase() : 'U') %>
+            </div>
+            <div class="user-details">
+                <div class="user-name"><strong><%= user.name || 'Пользователь' %></strong></div>
+                <div class="user-email"><%= user.email || '' %></div>
+            </div>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- Заголовок теста -->
+        <div class="test-header">
+            <h1 class="test-title"><%= test.name %></h1>
+            <% if (test.description) { %>
+                <p class="test-description"><%= test.description %></p>
+            <% } %>
+            <div class="test-meta">
+                <span><strong>Вопросов:</strong> <%= test.questions ? test.questions.length : 0 %></span>
+                <% if (test.course_name) { %>
+                    <span><strong>Курс:</strong> <%= test.course_name %></span>
+                <% } %>
+            </div>
+        </div>
+        
+        <!-- Прогресс -->
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        
+        <!-- Вопросы (скрыты изначально, показываются после начала) -->
+        <div id="testContent" class="hidden">
+            <% if (test.questions && test.questions.length > 0) { %>
+                <% test.questions.forEach((question, index) => { %>
+                    <div class="question-card" id="question-<%= index %>" data-question-id="<%= question.id %>" style="display: none;">
+                        <div class="question-number">Вопрос <%= index + 1 %> из <%= test.questions.length %></div>
+                        <div class="question-text"><%= question.text %></div>
+                        <div class="question-points"><%= question.points || 1 %> балл(ов)</div>
+                        
+                        <div class="options">
+                            <% if (question.options && question.options.length > 0) { %>
+                                <% question.options.forEach((option, optIndex) => { %>
+                                    <div class="option" onclick="selectOption(this, '<%= question.id %>', '<%= option.id %>')">
+                                        <input type="radio" name="question-<%= question.id %>" id="opt-<%= option.id %>" value="<%= option.id %>">
+                                        <label for="opt-<%= option.id %>"><%= option.text %></label>
+                                    </div>
+                                <% }); %>
+                            <% } else { %>
+                                <p style="color: #888;">Нет вариантов ответа</p>
+                            <% } %>
+                        </div>
+                    </div>
+                <% }); %>
+            <% } else { %>
+                <div class="question-card">
+                    <p>В этом тесте пока нет вопросов.</p>
+                </div>
+            <% } %>
+            
+            <div class="actions">
+                <button class="btn btn-secondary" id="prevBtn" onclick="prevQuestion()" disabled>← Назад</button>
+                <button class="btn btn-primary" id="nextBtn" onclick="nextQuestion()">Далее →</button>
+                <button class="btn btn-success hidden" id="submitBtn" onclick="submitTest()">Завершить тест</button>
+            </div>
+        </div>
+        
+        <!-- Начальный экран -->
+        <div id="startScreen">
+            <div class="question-card" style="text-align: center;">
+                <h2 style="margin-bottom: 20px;">Готовы начать тест?</h2>
+                <p style="color: #666; margin-bottom: 30px;">
+                    После начала теста вы сможете отвечать на вопросы последовательно. 
+                    Вы можете вернуться к предыдущим вопросам.
+                </p>
+                <button class="btn btn-primary" onclick="startTest()">Начать тест</button>
+                <br><br>
+                <a href="javascript:history.back()" class="btn btn-secondary">← Вернуться</a>
+            </div>
+        </div>
+        
+        <!-- Экран результатов -->
+        <div id="resultScreen" class="hidden">
+            <div class="result-card">
+                <h2>Тест завершён!</h2>
+                <div class="result-score" id="scoreDisplay">0/0</div>
+                <p class="result-message" id="resultMessage">Ваш результат обрабатывается...</p>
+                <a href="/" class="btn btn-primary">Вернуться на главную</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const testId = '<%= test.id %>';
+        const userId = '<%= user.id || "" %>';
+        const totalQuestions = <%= test.questions ? test.questions.length : 0 %>;
+        let currentQuestion = 0;
+        let answers = {};
+        let attemptId = null;
+        
+        function startTest() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('testContent').classList.remove('hidden');
+            showQuestion(0);
+            
+            // Создаём попытку через API
+            fetch('/api/tests/attempts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    test_id: testId,
+                    user_id: userId
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.attempt_id) {
+                    attemptId = data.attempt_id;
+                    console.log('Attempt created:', attemptId);
+                }
+            })
+            .catch(err => console.error('Error creating attempt:', err));
+        }
+        
+        function showQuestion(index) {
+            // Скрываем все вопросы
+            document.querySelectorAll('.question-card').forEach(q => q.style.display = 'none');
+            
+            // Показываем текущий
+            const currentCard = document.getElementById('question-' + index);
+            if (currentCard) {
+                currentCard.style.display = 'block';
+            }
+            
+            currentQuestion = index;
+            updateProgress();
+            updateButtons();
+        }
+        
+        function updateProgress() {
+            const progress = ((currentQuestion + 1) / totalQuestions) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+        }
+        
+        function updateButtons() {
+            document.getElementById('prevBtn').disabled = currentQuestion === 0;
+            
+            if (currentQuestion === totalQuestions - 1) {
+                document.getElementById('nextBtn').classList.add('hidden');
+                document.getElementById('submitBtn').classList.remove('hidden');
+            } else {
+                document.getElementById('nextBtn').classList.remove('hidden');
+                document.getElementById('submitBtn').classList.add('hidden');
+            }
+        }
+        
+        function selectOption(element, questionId, optionId) {
+            // Снимаем выделение с других опций
+            element.parentElement.querySelectorAll('.option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            // Выделяем текущую
+            element.classList.add('selected');
+            element.querySelector('input').checked = true;
+            
+            // Сохраняем ответ
+            answers[questionId] = optionId;
+        }
+        
+        function nextQuestion() {
+            if (currentQuestion < totalQuestions - 1) {
+                showQuestion(currentQuestion + 1);
+            }
+        }
+        
+        function prevQuestion() {
+            if (currentQuestion > 0) {
+                showQuestion(currentQuestion - 1);
+            }
+        }
+        
+        function submitTest() {
+            document.getElementById('testContent').classList.add('hidden');
+            document.getElementById('resultScreen').classList.remove('hidden');
+            
+            // Отправляем результаты
+            const answersArray = Object.entries(answers).map(([questionId, optionId]) => ({
+                question_id: questionId,
+                option_id: optionId
+            }));
+            
+            fetch('/api/tests/attempts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    test_id: testId,
+                    user_id: userId,
+                    answers: answersArray
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                const score = data.score || 0;
+                const maxScore = data.max_score || totalQuestions;
+                document.getElementById('scoreDisplay').textContent = score + '/' + maxScore;
+                
+                const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                let message = '';
+                if (percentage >= 90) message = 'Отлично! Превосходный результат!';
+                else if (percentage >= 70) message = 'Хорошо! Достойный результат.';
+                else if (percentage >= 50) message = 'Удовлетворительно. Есть над чем поработать.';
+                else message = 'Попробуйте ещё раз.';
+                
+                document.getElementById('resultMessage').textContent = message;
+            })
+            .catch(err => {
+                console.error('Error submitting test:', err);
+                document.getElementById('resultMessage').textContent = 'Произошла ошибка при отправке результатов.';
+            });
+        }
+    </script>
+</body>
+</html>

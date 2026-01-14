@@ -33,25 +33,35 @@ class MainApiClient {
   }
 
   /**
+   * Формирует заголовок авторизации
+   * @param {string} accessToken - JWT access token
+   * @returns {object} Заголовки с Authorization
+   */
+  getAuthHeaders(accessToken) {
+    if (!accessToken) return {};
+    return { 'Authorization': `Bearer ${accessToken}` };
+  }
+
+  /**
    * Выполняет запрос к main модулю
    * @param {string} endpoint - Путь к endpoint (например, '/api/tests')
    * @param {string} method - HTTP метод (get, post, put, delete)
    * @param {object} data - Тело запроса (для POST/PUT)
-   * @param {object} headers - Дополнительные заголовки
+   * @param {string} accessToken - JWT access token для авторизации
    * @returns {Promise} Ответ от сервера
    */
-  async request(endpoint, method = 'get', data = null, headers = {}) {
+  async request(endpoint, method = 'get', data = null, accessToken = null) {
     try {
       const config = {
         method,
         url: endpoint,
         headers: {
           ...this.client.defaults.headers,
-          ...headers
+          ...this.getAuthHeaders(accessToken)
         }
       };
 
-      if (data && (method === 'post' || method === 'put' || method === 'patch')) {
+      if (data && (method === 'post' || method === 'put' || method === 'patch' || method === 'delete')) {
         config.data = data;
       }
 
@@ -62,7 +72,7 @@ class MainApiClient {
         // Сервер вернул ошибку
         throw {
           status: error.response.status,
-          message: error.response.data?.message || error.message,
+          message: error.response.data?.error || error.response.data?.message || error.message,
           data: error.response.data
         };
       } else if (error.request) {
@@ -88,36 +98,175 @@ class MainApiClient {
   /**
    * Получить список всех тестов
    */
-  async getTests() {
-    return this.request('/api/tests', 'get');
+  async getTests(accessToken) {
+    return this.request('/api/tests', 'get', null, accessToken);
   }
 
   /**
    * Получить детали конкретного теста
    */
-  async getTestDetails(testId) {
-    return this.request(`/api/tests/${testId}`, 'get');
+  async getTestDetails(testId, accessToken) {
+    return this.request(`/api/tests/${testId}`, 'get', null, accessToken);
   }
 
   /**
    * Создать новый тест
    */
-  async createTest(testData) {
-    return this.request('/api/tests', 'post', testData);
+  async createTest(testData, accessToken) {
+    return this.request('/api/tests', 'post', testData, accessToken);
   }
 
   /**
-   * Добавить вопрос к тесту
+   * Активировать/деактивировать тест
    */
-  async addQuestion(testId, questionData) {
-    return this.request(`/api/tests/${testId}/questions`, 'post', questionData);
+  async activateTest(testId, isActive, accessToken) {
+    return this.request(`/api/tests/${testId}/activate`, 'put', { is_active: isActive }, accessToken);
+  }
+
+  /**
+   * Добавить вопрос к тесту (создать новый вопрос в тесте)
+   */
+  async addQuestionToTest(testId, questionData, accessToken) {
+    return this.request(`/api/tests/${testId}/questions`, 'post', questionData, accessToken);
+  }
+
+  /**
+   * Удалить вопрос из теста
+   */
+  async removeQuestionFromTest(testId, questionId, accessToken) {
+    return this.request(`/api/tests/${testId}/questions/${questionId}`, 'delete', null, accessToken);
   }
 
   /**
    * Создать попытку прохождения теста
    */
-  async createTestAttempt(attemptData) {
-    return this.request('/api/tests/attempts', 'post', attemptData);
+  async createTestAttempt(attemptData, accessToken) {
+    return this.request('/api/tests/attempts', 'post', attemptData, accessToken);
+  }
+
+  // ========== Методы для работы с попытками (Attempts) ==========
+
+  /**
+   * Получить информацию о попытке
+   */
+  async getAttempt(attemptId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}`, 'get', null, accessToken);
+  }
+
+  /**
+   * Завершить попытку
+   */
+  async finishAttempt(attemptId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}/finish`, 'post', null, accessToken);
+  }
+
+  /**
+   * Обновить ответ в попытке
+   */
+  async updateAnswer(attemptId, answerId, optionId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}/answers/${answerId}`, 'put', { option_id: optionId }, accessToken);
+  }
+
+  // ========== Методы для работы с вопросами (Questions) ==========
+
+  /**
+   * Получить список вопросов
+   */
+  async getQuestions(accessToken) {
+    return this.request('/api/questions', 'get', null, accessToken);
+  }
+
+  /**
+   * Получить вопрос по ID
+   */
+  async getQuestion(questionId, accessToken) {
+    return this.request(`/api/questions/${questionId}`, 'get', null, accessToken);
+  }
+
+  /**
+   * Создать вопрос
+   */
+  async createQuestion(questionData, accessToken) {
+    return this.request('/api/questions', 'post', questionData, accessToken);
+  }
+
+  /**
+   * Обновить вопрос
+   */
+  async updateQuestion(questionId, questionData, accessToken) {
+    return this.request(`/api/questions/${questionId}`, 'put', questionData, accessToken);
+  }
+
+  /**
+   * Удалить вопрос
+   */
+  async deleteQuestion(questionId, accessToken) {
+    return this.request(`/api/questions/${questionId}`, 'delete', null, accessToken);
+  }
+
+  // ========== Методы для работы с курсами (Courses) ==========
+
+  /**
+   * Получить список всех курсов
+   */
+  async getCourses(accessToken) {
+    return this.request('/api/courses', 'get', null, accessToken);
+  }
+
+  /**
+   * Получить информацию о курсе
+   */
+  async getCourse(courseId, accessToken) {
+    return this.request(`/api/courses/${courseId}`, 'get', null, accessToken);
+  }
+
+  /**
+   * Создать курс
+   */
+  async createCourse(courseData, accessToken) {
+    return this.request('/api/courses', 'post', courseData, accessToken);
+  }
+
+  /**
+   * Обновить курс
+   */
+  async updateCourse(courseId, courseData, accessToken) {
+    return this.request(`/api/courses/${courseId}`, 'put', courseData, accessToken);
+  }
+
+  /**
+   * Удалить курс
+   */
+  async deleteCourse(courseId, accessToken) {
+    return this.request(`/api/courses/${courseId}`, 'delete', null, accessToken);
+  }
+
+  /**
+   * Получить студентов курса
+   */
+  async getCourseStudents(courseId, accessToken) {
+    return this.request(`/api/courses/${courseId}/students`, 'get', null, accessToken);
+  }
+
+  /**
+   * Получить тесты курса
+   */
+  async getCourseTests(courseId, accessToken) {
+    return this.request(`/api/courses/${courseId}/tests`, 'get', null, accessToken);
+  }
+
+  /**
+   * Записаться на курс
+   */
+  async enrollToCourse(courseId, userId, accessToken) {
+    return this.request(`/api/courses/${courseId}/enroll`, 'post', userId ? { user_id: userId } : {}, accessToken);
+  }
+
+  /**
+   * Отписаться от курса
+   */
+  async unenrollFromCourse(courseId, userId, accessToken) {
+    return this.request(`/api/courses/${courseId}/enroll/${userId}`, 'delete', null, accessToken);
   }
 
   // ========== Методы для работы с пользователями ==========
@@ -125,64 +274,94 @@ class MainApiClient {
   /**
    * Получить список всех пользователей
    */
-  async getUsers() {
-    return this.request('/api/db/users', 'get');
+  async getUsers(accessToken) {
+    return this.request('/api/db/users', 'get', null, accessToken);
   }
 
   /**
    * Добавить нового пользователя
    */
-  async addUser(userData) {
-    return this.request('/api/db/addUser', 'post', userData);
+  async addUser(userData, accessToken) {
+    return this.request('/api/db/addUser', 'post', userData, accessToken);
   }
 
   /**
    * Получить имя пользователя
    */
-  async getUserName(userId) {
-    return this.request(`/api/db/users/${userId}/name`, 'get');
+  async getUserName(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/name`, 'get', null, accessToken);
   }
 
   /**
    * Установить имя пользователя
    */
-  async setUserName(userId, name) {
-    return this.request(`/api/db/users/${userId}/name`, 'put', { name });
+  async setUserName(userId, name, accessToken) {
+    return this.request(`/api/db/users/${userId}/name`, 'put', { name }, accessToken);
   }
 
   /**
    * Получить курсы пользователя
    */
-  async getUserCourses(userId) {
-    return this.request(`/api/db/users/${userId}/courses`, 'get');
+  async getUserCourses(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/courses`, 'get', null, accessToken);
   }
 
   /**
    * Получить оценки пользователя
    */
-  async getUserGrades(userId) {
-    return this.request(`/api/db/users/${userId}/grades`, 'get');
+  async getUserGrades(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/grades`, 'get', null, accessToken);
   }
 
   /**
    * Получить тесты пользователя
    */
-  async getUserTests(userId) {
-    return this.request(`/api/db/users/${userId}/tests`, 'get');
+  async getUserTests(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/tests`, 'get', null, accessToken);
   }
 
   /**
    * Получить роли пользователя
    */
-  async getUserRoles(userId) {
-    return this.request(`/api/db/users/${userId}/roles`, 'get');
+  async getUserRoles(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/roles`, 'get', null, accessToken);
   }
 
   /**
    * Установить роли пользователя
    */
-  async setUserRoles(userId, roles) {
-    return this.request(`/api/db/users/${userId}/roles`, 'put', { roles });
+  async setUserRoles(userId, roles, accessToken) {
+    return this.request(`/api/db/users/${userId}/roles`, 'put', { roles }, accessToken);
+  }
+
+  /**
+   * Проверить, заблокирован ли пользователь
+   */
+  async getUserBlocked(userId, accessToken) {
+    return this.request(`/api/db/users/${userId}/block`, 'get', null, accessToken);
+  }
+
+  /**
+   * Заблокировать/разблокировать пользователя
+   */
+  async setUserBlocked(userId, isBlocked, accessToken) {
+    return this.request(`/api/db/users/${userId}/block`, 'put', { is_blocked: isBlocked }, accessToken);
+  }
+
+  // ========== Методы для работы с уведомлениями ==========
+
+  /**
+   * Получить уведомления текущего пользователя
+   */
+  async getNotifications(accessToken) {
+    return this.request('/notification', 'get', null, accessToken);
+  }
+
+  /**
+   * Очистить уведомления текущего пользователя
+   */
+  async clearNotifications(accessToken) {
+    return this.request('/notification', 'delete', null, accessToken);
   }
 
   // ========== Служебные методы ==========
@@ -201,8 +380,8 @@ class MainApiClient {
   /**
    * Тестовый запрос
    */
-  async test() {
-    return this.request('/api/test', 'get');
+  async test(accessToken) {
+    return this.request('/api/test', 'get', null, accessToken);
   }
 }
 

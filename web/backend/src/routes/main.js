@@ -8,53 +8,6 @@ router.get('/', async (req, res) => {
   
   console.log(`[MAIN] Статус пользователя: ${userStatus}`);
   
-  // Фиктивные курсы для демонстрации (fallback)
-  const mockCourses = [
-    {
-      id: 'course_1',
-      name: 'Основы программирования',
-      description: 'Введение в программирование на Python',
-      instructor: 'Иванов И.И.',
-      enrolled: true,
-      active: true,
-      progress: 75,
-      tests: [
-        { id: 'test_1', name: 'Тест 1: Основы Python', completed: true, score: 85, date: '2024-01-15' },
-        { id: 'test_2', name: 'Тест 2: Функции', completed: true, score: 92, date: '2024-01-22' },
-        { id: 'test_3', name: 'Тест 3: ООП', completed: false, score: null }
-      ],
-      materials: [
-        { name: 'Лекция 1: Введение', type: 'PDF' },
-        { name: 'Лекция 2: Синтаксис', type: 'Видео' }
-      ]
-    },
-    {
-      id: 'course_2',
-      name: 'Базы данных',
-      description: 'SQL и проектирование баз данных',
-      instructor: 'Петров П.П.',
-      enrolled: true,
-      active: true,
-      progress: 30,
-      tests: [
-        { id: 'test_4', name: 'Тест 1: Основы SQL', completed: true, score: 78, date: '2024-01-10' },
-        { id: 'test_5', name: 'Тест 2: JOIN операции', completed: false, score: null }
-      ],
-      materials: [
-        { name: 'Лекция 1: Введение в БД', type: 'PDF' }
-      ]
-    },
-    {
-      id: 'course_3',
-      name: 'Веб-разработка',
-      description: 'HTML, CSS, JavaScript и фреймворки',
-      instructor: 'Сидоров С.С.',
-      enrolled: false,
-      active: true,
-      progress: 0
-    }
-  ];
-  
   switch (userStatus) {
     case 'unknown':
       // Показываем страницу авторизации
@@ -89,15 +42,16 @@ router.get('/', async (req, res) => {
           email: 'unknown@example.com',
           roles: ['student']
         };
+        const accessToken = sessionData?.accessToken;
         
         let courses = [];
-        let userInfo = null;
+        let notifications = [];
         
         // Получаем данные пользователя из main модуля
-        if (user.id) {
+        if (user.id && accessToken) {
           try {
             // Получаем курсы пользователя
-            const coursesData = await mainApiClient.getUserCourses(user.id);
+            const coursesData = await mainApiClient.getUserCourses(user.id, accessToken);
             if (coursesData && Array.isArray(coursesData)) {
               courses = coursesData;
             } else if (coursesData && coursesData.courses) {
@@ -106,7 +60,7 @@ router.get('/', async (req, res) => {
             
             // Получаем дополнительную информацию о пользователе
             try {
-              const userName = await mainApiClient.getUserName(user.id);
+              const userName = await mainApiClient.getUserName(user.id, accessToken);
               if (userName && userName.name) {
                 user.name = userName.name;
               }
@@ -116,30 +70,38 @@ router.get('/', async (req, res) => {
             
             // Получаем тесты пользователя для отображения в курсах
             try {
-              const userTests = await mainApiClient.getUserTests(user.id);
-              // Можно использовать для обогащения данных курсов
+              const userTestsData = await mainApiClient.getUserTests(user.id, accessToken);
+              if (userTestsData && userTestsData.tests) {
+                user.tests = userTestsData.tests;
+              }
             } catch (err) {
               console.warn(`[MAIN] Не удалось получить тесты пользователя ${user.id}:`, err.message);
             }
+            
+            // Получаем уведомления пользователя
+            try {
+              const notificationsData = await mainApiClient.getNotifications(accessToken);
+              if (notificationsData && notificationsData.notifications) {
+                notifications = notificationsData.notifications;
+              }
+            } catch (err) {
+              console.warn(`[MAIN] Не удалось получить уведомления:`, err.message);
+            }
           } catch (err) {
             console.error(`[MAIN] Ошибка при получении данных пользователя ${user.id}:`, err.message);
-            // Используем fallback данные
-            courses = mockCourses.filter(c => c.enrolled);
           }
         } else {
-          // Если нет ID пользователя, используем mock данные
-          console.warn('[MAIN] Нет ID пользователя в sessionData, используем mock данные');
-          courses = mockCourses.filter(c => c.enrolled);
+          console.warn('[MAIN] Нет ID пользователя или accessToken');
         }
         
         res.render('dashboard', {
           title: 'Личный кабинет',
           user: user,
-          courses: courses
+          courses: courses,
+          notifications: notifications
         });
       } catch (error) {
         console.error('[MAIN] Критическая ошибка при загрузке dashboard:', error);
-        // Fallback на mock данные в случае ошибки
         res.render('dashboard', {
           title: 'Личный кабинет',
           user: sessionData?.userData || { 
@@ -147,8 +109,9 @@ router.get('/', async (req, res) => {
             email: 'unknown@example.com',
             roles: ['student']
           },
-          courses: mockCourses.filter(c => c.enrolled),
-          error: 'Не удалось загрузить данные. Показаны демонстрационные данные.'
+          courses: [],
+          notifications: [],
+          error: 'Не удалось загрузить данные.'
         });
       }
       break;
@@ -227,73 +190,39 @@ router.get('/course/:id', async (req, res) => {
     return res.redirect('/');
   }
   
-  // Фиктивные данные курса (fallback)
-  const mockCourses = {
-    'course_1': {
-      id: 'course_1',
-      name: 'Основы программирования',
-      description: 'Введение в программирование на Python. Изучите базовые концепции, синтаксис и основные структуры данных.',
-      instructor: 'Иванов Иван Иванович',
-      enrolled: true,
-      progress: 75,
-      tests: [
-        { id: 'test_1', name: 'Тест 1: Основы Python', completed: true, score: 85, date: '2024-01-15' },
-        { id: 'test_2', name: 'Тест 2: Функции и модули', completed: true, score: 92, date: '2024-01-22' },
-        { id: 'test_3', name: 'Тест 3: Объектно-ориентированное программирование', completed: false, score: null }
-      ],
-      materials: [
-        { name: 'Лекция 1: Введение в Python', type: 'PDF' },
-        { name: 'Лекция 2: Синтаксис и типы данных', type: 'Видео' },
-        { name: 'Лекция 3: Управляющие конструкции', type: 'PDF' },
-        { name: 'Практическая работа 1', type: 'Задание' }
-      ]
-    },
-    'course_2': {
-      id: 'course_2',
-      name: 'Базы данных',
-      description: 'Изучение SQL, проектирование баз данных, нормализация и оптимизация запросов.',
-      instructor: 'Петров Петр Петрович',
-      enrolled: true,
-      progress: 30,
-      tests: [
-        { id: 'test_4', name: 'Тест 1: Основы SQL', completed: true, score: 78, date: '2024-01-10' },
-        { id: 'test_5', name: 'Тест 2: JOIN операции и агрегация', completed: false, score: null },
-        { id: 'test_6', name: 'Тест 3: Нормализация БД', completed: false, score: null }
-      ],
-      materials: [
-        { name: 'Лекция 1: Введение в базы данных', type: 'PDF' },
-        { name: 'Лекция 2: Основы SQL', type: 'Видео' }
-      ]
-    }
-  };
-  
   const courseId = req.params.id;
   let course = null;
   
   try {
     // Пытаемся получить реальные данные курса из main модуля
     const user = sessionData?.userData;
+    const accessToken = sessionData?.accessToken;
     
-    if (user && user.id) {
+    if (user && user.id && accessToken) {
       try {
-        // Получаем курсы пользователя
-        const coursesData = await mainApiClient.getUserCourses(user.id);
-        const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
+        // Сначала пытаемся получить информацию о курсе напрямую
+        try {
+          const courseData = await mainApiClient.getCourse(courseId, accessToken);
+          if (courseData && courseData.id) {
+            course = courseData;
+          }
+        } catch (err) {
+          console.warn(`[MAIN] Не удалось получить курс ${courseId} напрямую:`, err.message);
+        }
         
-        // Ищем нужный курс
-        course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
+        // Если не получили, ищем в курсах пользователя
+        if (!course) {
+          const coursesData = await mainApiClient.getUserCourses(user.id, accessToken);
+          const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
+          course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
+        }
         
-        // Если курс найден, получаем тесты пользователя для этого курса
+        // Если курс найден, получаем тесты курса
         if (course) {
           try {
-            const userTests = await mainApiClient.getUserTests(user.id);
-            if (userTests && Array.isArray(userTests)) {
-              // Фильтруем тесты по курсу (если есть связь)
-              course.tests = userTests.filter(t => 
-                t.course_id === courseId || 
-                t.courseId === courseId ||
-                t.course === courseId
-              );
+            const testsData = await mainApiClient.getCourseTests(courseId, accessToken);
+            if (testsData && testsData.tests) {
+              course.tests = testsData.tests;
             }
           } catch (err) {
             console.warn(`[MAIN] Не удалось получить тесты для курса ${courseId}:`, err.message);
@@ -304,15 +233,12 @@ router.get('/course/:id', async (req, res) => {
       }
     }
     
-    // Если курс не найден, используем mock данные
     if (!course) {
-      course = mockCourses[courseId] || {
-        id: courseId,
-        name: 'Курс не найден',
-        description: 'Запрошенный курс не существует',
-        instructor: 'Неизвестно',
-        enrolled: false
-      };
+      return res.status(404).render('error', {
+        title: 'Курс не найден',
+        statusCode: 404,
+        message: 'Запрошенный курс не существует или недоступен.'
+      });
     }
     
     res.render('course', {
@@ -322,20 +248,72 @@ router.get('/course/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('[MAIN] Критическая ошибка при загрузке курса:', error);
-    // Fallback на mock данные
-    course = mockCourses[courseId] || {
-      id: courseId,
-      name: 'Ошибка загрузки',
-      description: 'Не удалось загрузить данные курса',
-      instructor: 'Неизвестно',
-      enrolled: false
-    };
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить данные курса. Попробуйте позже.'
+    });
+  }
+});
+
+// Страница теста
+router.get('/test/:id', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.redirect('/login');
+  }
+  
+  const testId = req.params.id;
+  const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
+  const accessToken = sessionData?.accessToken;
+  
+  try {
+    // Получаем детали теста из main модуля
+    const testData = await mainApiClient.getTestDetails(testId, accessToken);
     
-    res.render('course', {
-      title: course.name,
-      user: sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' },
-      course: course,
-      error: 'Не удалось загрузить данные курса. Показаны демонстрационные данные.'
+    if (!testData || !testData.id) {
+      return res.status(404).render('error', {
+        title: 'Тест не найден',
+        statusCode: 404,
+        message: 'Запрошенный тест не существует или был удалён.'
+      });
+    }
+    
+    res.render('test', {
+      title: testData.name,
+      user: user,
+      test: testData
+    });
+  } catch (error) {
+    console.error(`[MAIN] Ошибка при загрузке теста ${testId}:`, error);
+    
+    if (error.status === 404) {
+      return res.status(404).render('error', {
+        title: 'Тест не найден',
+        statusCode: 404,
+        message: 'Запрошенный тест не существует.'
+      });
+    }
+    
+    if (error.status === 403) {
+      return res.status(403).render('error', {
+        title: 'Доступ запрещён',
+        statusCode: 403,
+        message: 'У вас нет доступа к этому тесту.'
+      });
+    }
+
+    if (error.status === 401) {
+      // Сессия есть, но токен невалиден/истёк. Пока нет автоматического refresh-flow,
+      // поэтому сбрасываем сессию и предлагаем войти снова.
+      return res.redirect('/logout');
+    }
+    
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить тест. Попробуйте позже.'
     });
   }
 });
