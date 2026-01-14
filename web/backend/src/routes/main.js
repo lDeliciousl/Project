@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const mainApiClient = require('../utils/mainApiClient');
+const sessionManager = require('../utils/session');
+const authApiClient = require('../utils/authApiClient');
 
 // Главная страница
 router.get('/', async (req, res) => {
@@ -52,7 +54,16 @@ router.get('/', async (req, res) => {
         if (user.id && accessToken) {
           try {
             // Получаем курсы пользователя
-            const coursesData = await mainApiClient.getUserCourses(user.id, accessToken);
+            const coursesResp = await mainApiClient.requestWithRefresh({
+              endpoint: `/api/db/users/${user.id}/courses`,
+              method: 'get',
+              sessionToken: req.sessionToken,
+              sessionData,
+              sessionManager,
+              authApiClient,
+              res
+            });
+            const coursesData = coursesResp?.data;
             if (coursesData && Array.isArray(coursesData)) {
               courses = coursesData;
             } else if (coursesData && coursesData.courses) {
@@ -61,7 +72,16 @@ router.get('/', async (req, res) => {
             
             // Получаем дополнительную информацию о пользователе
             try {
-              const userName = await mainApiClient.getUserName(user.id, accessToken);
+              const userNameResp = await mainApiClient.requestWithRefresh({
+                endpoint: `/api/db/users/${user.id}/name`,
+                method: 'get',
+                sessionToken: req.sessionToken,
+                sessionData,
+                sessionManager,
+                authApiClient,
+                res
+              });
+              const userName = userNameResp?.data;
               if (userName && userName.name) {
                 user.name = userName.name;
               }
@@ -71,7 +91,16 @@ router.get('/', async (req, res) => {
             
             // Получаем тесты пользователя для отображения в курсах
             try {
-              const userTestsData = await mainApiClient.getUserTests(user.id, accessToken);
+              const userTestsResp = await mainApiClient.requestWithRefresh({
+                endpoint: `/api/db/users/${user.id}/tests`,
+                method: 'get',
+                sessionToken: req.sessionToken,
+                sessionData,
+                sessionManager,
+                authApiClient,
+                res
+              });
+              const userTestsData = userTestsResp?.data;
               if (userTestsData && userTestsData.tests) {
                 user.tests = userTestsData.tests;
               }
@@ -81,7 +110,16 @@ router.get('/', async (req, res) => {
             
             // Получаем уведомления пользователя
             try {
-              const notificationsData = await mainApiClient.getNotifications(accessToken);
+              const notificationsResp = await mainApiClient.requestWithRefresh({
+                endpoint: `/notification`,
+                method: 'get',
+                sessionToken: req.sessionToken,
+                sessionData,
+                sessionManager,
+                authApiClient,
+                res
+              });
+              const notificationsData = notificationsResp?.data;
               if (notificationsData && notificationsData.notifications) {
                 notifications = notificationsData.notifications;
               }
@@ -129,16 +167,8 @@ router.get('/login', (req, res) => {
   if (userStatus === 'authenticated') {
     return res.redirect('/');
   }
-  
-  res.render('login', {
-    title: 'Вход в систему',
-    authMethods: [
-      { type: 'github', name: 'GitHub', icon: 'github' },
-      { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
-      { type: 'code', name: 'Код авторизации', icon: 'key' },
-      { type: 'confirm', name: 'Подтверждение', icon: 'phone' }
-    ]
-  });
+
+  return res.redirect('/');
 });
 
 // Страница регистрации
@@ -209,7 +239,16 @@ router.get('/course/:id', async (req, res) => {
       try {
         // Сначала пытаемся получить информацию о курсе напрямую
         try {
-          const courseData = await mainApiClient.getCourse(courseId, accessToken);
+          const courseResp = await mainApiClient.requestWithRefresh({
+            endpoint: `/api/courses/${courseId}`,
+            method: 'get',
+            sessionToken: req.sessionToken,
+            sessionData,
+            sessionManager,
+            authApiClient,
+            res
+          });
+          const courseData = courseResp?.data;
           if (courseData && courseData.id) {
             course = courseData;
           }
@@ -219,7 +258,16 @@ router.get('/course/:id', async (req, res) => {
         
         // Если не получили, ищем в курсах пользователя
         if (!course) {
-          const coursesData = await mainApiClient.getUserCourses(user.id, accessToken);
+          const coursesResp = await mainApiClient.requestWithRefresh({
+            endpoint: `/api/db/users/${user.id}/courses`,
+            method: 'get',
+            sessionToken: req.sessionToken,
+            sessionData,
+            sessionManager,
+            authApiClient,
+            res
+          });
+          const coursesData = coursesResp?.data;
           const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
           course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
         }
@@ -227,7 +275,16 @@ router.get('/course/:id', async (req, res) => {
         // Если курс найден, получаем тесты курса
         if (course) {
           try {
-            const testsData = await mainApiClient.getCourseTests(courseId, accessToken);
+            const testsResp = await mainApiClient.requestWithRefresh({
+              endpoint: `/api/courses/${courseId}/tests`,
+              method: 'get',
+              sessionToken: req.sessionToken,
+              sessionData,
+              sessionManager,
+              authApiClient,
+              res
+            });
+            const testsData = testsResp?.data;
             if (testsData && testsData.tests) {
               course.tests = testsData.tests;
             }
@@ -277,7 +334,16 @@ router.get('/test/:id', async (req, res) => {
   
   try {
     // Получаем детали теста из main модуля
-    const testData = await mainApiClient.getTestDetails(testId, accessToken);
+    const testResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${testId}`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    const testData = testResp?.data;
     
     if (!testData || !testData.id) {
       return res.status(404).render('error', {
@@ -312,8 +378,6 @@ router.get('/test/:id', async (req, res) => {
     }
 
     if (error.status === 401) {
-      // Сессия есть, но токен невалиден/истёк. Пока нет автоматического refresh-flow,
-      // поэтому сбрасываем сессию и предлагаем войти снова.
       return res.redirect('/logout');
     }
     
