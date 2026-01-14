@@ -133,12 +133,14 @@ class AuthApiClient {
    * Генерирует код для авторизации по email
    * @param {string} loginToken - Токен входа
    * @param {string} email - Email пользователя
+   * @param {string} flow - Режим: login | register
    * @returns {Promise<{code: string}>}
    */
-  async generateAuthCode(loginToken, email) {
+  async generateAuthCode(loginToken, email, flow) {
     return this.request('/api/auth/code/generate', 'post', {
       login_token: loginToken,
-      email: email
+      email: email,
+      flow: flow
     });
   }
 
@@ -147,13 +149,15 @@ class AuthApiClient {
    * @param {string} loginToken - Токен входа
    * @param {string} code - Код авторизации
    * @param {string} refreshToken - Refresh токен (для получения email)
+   * @param {string} flow - Режим: login | register
    * @returns {Promise<{status: string}>}
    */
-  async verifyAuthCode(loginToken, code, refreshToken) {
+  async verifyAuthCode(loginToken, code, refreshToken, flow) {
     return this.request('/api/auth/code/verify', 'post', {
       login_token: loginToken,
       code: code,
-      refresh_token: refreshToken
+      refresh_token: refreshToken,
+      flow: flow
     });
   }
 

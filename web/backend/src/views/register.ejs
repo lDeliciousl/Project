@@ -126,7 +126,7 @@
         
         <div class="auth-methods">
             <% authMethods.forEach(method => { %>
-                <a href="/auth/login/<%= method.type %>" class="auth-btn <%= method.type %>">
+                <a href="/auth/login/<%= method.type %><%= method.type === 'code' ? '?flow=register' : '' %>" class="auth-btn <%= method.type %>">
                     <span>🔐</span>
                     <span>Регистрация через <%= method.name %></span>
                 </a>

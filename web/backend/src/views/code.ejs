@@ -53,6 +53,26 @@
         }
         .alert.success { background: #e9f7ef; color: #1e7e34; border: 1px solid #b7ebc6; }
         .alert.error { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+        .notice {
+            margin: 12px 0;
+            padding: 14px 14px;
+            border-radius: 12px;
+            border: 2px solid #f5c6cb;
+            background: #fff5f5;
+            color: #7f1d1d;
+        }
+        .notice-title {
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .notice-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .btn.danger { background: #b91c1c; color: #fff; }
+        .btn.danger:hover { filter: brightness(0.95); transform: translateY(-1px); }
         form {
             display: grid;
             gap: 12px;
@@ -115,18 +135,42 @@
 </head>
 <body>
     <div class="container">
-        <h1>Вход по коду</h1>
-        <p class="subtitle">Введите email, получите код и подтвердите вход</p>
+        <h1><%= (flow === 'register' ? 'Регистрация по коду' : 'Вход по коду') %></h1>
+        <p class="subtitle"><%= (flow === 'register' ? 'Введите email, получите код и подтвердите регистрацию' : 'Введите email, получите код и подтвердите вход') %></p>
 
         <% if (message) { %>
           <div class="alert success"><%= message %></div>
         <% } %>
 
-        <% if (error) { %>
+        <% if (typeof errorCode !== 'undefined' && errorCode === 'account_not_found') { %>
+          <div class="notice">
+            <div class="notice-title">Аккаунт с таким email не найден</div>
+            <div>Похоже, вы ещё не зарегистрированы. Зарегистрируйтесь, чтобы войти.</div>
+            <div class="notice-actions">
+              <a class="btn danger" href="/auth/login/code?flow=register">Зарегистрироваться по коду</a>
+              <a class="btn secondary" href="/register">Открыть страницу регистрации</a>
+            </div>
+          </div>
+        <% } %>
+
+        <% if (typeof errorCode !== 'undefined' && errorCode === 'account_already_exists') { %>
+          <div class="notice" style="border-color:#dfe2ff;background:#f3f4ff;color:#111827;">
+            <div class="notice-title">Аккаунт уже зарегистрирован</div>
+            <div>Используйте вход, а не регистрацию.</div>
+            <div class="notice-actions">
+              <a class="btn primary" href="/auth/login/code?flow=login">Войти по коду</a>
+              <a class="btn secondary" href="/login">Вернуться к входу</a>
+            </div>
+          </div>
+        <% } %>
+
+        <% const hideGenericError = (typeof errorCode !== 'undefined' && (errorCode === 'account_not_found' || errorCode === 'account_already_exists')); %>
+        <% if (error && !hideGenericError) { %>
           <div class="alert error"><%= error %></div>
         <% } %>
 
         <form method="post" action="/auth/code/verify" class="stack">
+            <input type="hidden" name="flow" value="<%= flow || 'login' %>" />
             <div>
                 <label for="email">Email</label>
                 <input id="email" name="email" type="email" value="<%= email %>" placeholder="you@example.com" required />
@@ -145,8 +189,17 @@
             <div id="cooldownHint" class="cooldown" style="display: none;"></div>
         </form>
 
+        <form id="sendCodeForm" method="post" action="/auth/code/send" style="display:none;">
+            <input id="sendEmail" name="email" type="hidden" value="" />
+        </form>
+
         <div class="footer">
-            <a href="/login">Назад к выбору входа</a>
+            <% if ((flow || 'login') === 'register') { %>
+              Уже есть аккаунт? <a href="/auth/login/code?flow=login">Войти по коду</a>
+            <% } else { %>
+              Нет аккаунта? <a href="/auth/login/code?flow=register">Зарегистрироваться по коду</a>
+            <% } %>
+            <div style="margin-top: 8px;"><a href="/login">Назад к выбору входа</a></div>
         </div>
     </div>
 
@@ -217,20 +270,19 @@
                 var email = (emailInput && emailInput.value ? emailInput.value.trim() : '');
                 if (!email) return;
 
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+                    alert('Введите корректный email');
+                    return;
+                }
+
                 setSentOnce();
                 startCooldown();
                 updateUI();
 
-                fetch('/auth/code/send', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({ email: email }).toString()
-                }).catch(function () {
-                    // Если запрос упал, даем пользователю повторить (снимаем cooldown)
-                    localStorage.removeItem(KEY);
-                    localStorage.removeItem(KEY_SENT);
-                    updateUI();
-                });
+                var sendEmail = document.getElementById('sendEmail');
+                var sendForm = document.getElementById('sendCodeForm');
+                if (sendEmail) sendEmail.value = email;
+                if (sendForm) sendForm.submit();
             }
 
             if (sendBtn) {

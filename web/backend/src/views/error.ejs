@@ -64,11 +64,12 @@
 <body>
     <div class="container">
         <h1>⚠️ <%= title || 'Ошибка' %></h1>
-        <% if (statusCode === 404) { %>
+        <% const code = (typeof statusCode !== 'undefined' && statusCode) ? statusCode : 500; %>
+        <% if (code === 404) { %>
             <p>Запрошенная страница или ресурс не найдены.</p>
-        <% } else if (statusCode === 403) { %>
+        <% } else if (code === 403) { %>
             <p>Недостаточно прав для выполнения этого действия.</p>
-        <% } else if (statusCode === 401) { %>
+        <% } else if (code === 401) { %>
             <p>Ваша сессия истекла или вы не авторизованы.</p>
         <% } else { %>
             <p>Произошла ошибка при обработке запроса. Попробуйте позже.</p>

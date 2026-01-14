@@ -4,62 +4,72 @@ const sessionManager = require('../utils/session');
 const { generateLoginToken } = require('../utils/tokens');
 const authApiClient = require('../utils/authApiClient');
 
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const value = email.trim();
+  if (value.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 // Инициализация авторизации
 router.get('/login/:type', async (req, res) => {
   const { type } = req.params;
+  const flow = (req.query?.flow || 'login').toString();
   const { sessionToken, userStatus } = req;
-  
+
   // Допустимые типы авторизации
   const validTypes = ['github', 'yandex', 'code'];
   if (!validTypes.includes(type)) {
     return res.redirect('/');
   }
-  
+
   let newSessionToken = sessionToken;
-  
+
   // Если пользователь неизвестный - создаем новую сессию
   if (userStatus === 'unknown') {
     const loginToken = generateLoginToken();
     newSessionToken = await sessionManager.createAnonymousSession(loginToken);
-    
+
     if (!newSessionToken) {
       return res.status(500).render('error', {
         title: 'Ошибка',
         message: 'Не удалось создать сессию'
       });
     }
-    
+
     // Устанавливаем куку с токеном сессии
     res.cookie('session_token', newSessionToken, {
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
       sameSite: 'lax'
     });
-    
+
     console.log(`[AUTH] Создана новая сессия: ${newSessionToken}`);
   }
-  
+
   // Для анонимных пользователей обновляем токен входа
   if (userStatus === 'anonymous' || userStatus === 'unknown') {
     const loginToken = generateLoginToken();
     await sessionManager.updateSession(newSessionToken || sessionToken, {
       loginToken: loginToken,
+      codeFlow: flow === 'register' ? 'register' : 'login',
       updatedAt: new Date().toISOString()
     });
-    
+
     console.log(`[AUTH] Обновлен токен входа: ${loginToken}`);
-    
+
     try {
       // Вызываем реальный auth модуль для инициализации OAuth
       const authResponse = await authApiClient.initOAuth(type, loginToken);
 
       if (type === 'code') {
         return res.render('code', {
-          title: 'Вход по коду',
+          title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
           loginToken: loginToken,
           message: null,
           error: null,
-          email: ''
+          email: '',
+          flow: flow === 'register' ? 'register' : 'login'
         });
       }
 
@@ -90,6 +100,7 @@ router.post('/code/send', async (req, res) => {
   }
 
   const loginToken = sessionData?.loginToken;
+  const flow = sessionData?.codeFlow || 'login';
   const email = (req.body?.email || '').trim();
 
   if (!loginToken) {
@@ -101,32 +112,74 @@ router.post('/code/send', async (req, res) => {
 
   if (!email) {
     return res.status(400).render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: null,
       error: 'Введите email',
-      email: ''
+      email: '',
+      flow,
+      errorCode: 'invalid_email'
+    });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).render('code', {
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+      loginToken,
+      message: null,
+      error: 'Введите корректный email',
+      email,
+      flow,
+      errorCode: 'invalid_email'
     });
   }
 
   try {
-    await authApiClient.generateAuthCode(loginToken, email);
+    await authApiClient.generateAuthCode(loginToken, email, flow);
 
     return res.render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: 'Код сгенерирован. Проверьте логи auth-модуля.',
       error: null,
-      email
+      email,
+      flow
     });
   } catch (error) {
     console.error('[AUTH CODE] Ошибка при генерации кода:', error);
+
+    if (error && error.status === 404) {
+      return res.status(404).render('code', {
+        title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+        loginToken,
+        message: null,
+        error: 'Аккаунт не найден. Пожалуйста, зарегистрируйтесь.',
+        email,
+        flow,
+        errorCode: 'account_not_found'
+      });
+    }
+
+    if (error && error.status === 409) {
+      return res.status(409).render('code', {
+        title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+        loginToken,
+        message: null,
+        error: 'Аккаунт уже существует. Пожалуйста, войдите.',
+        email,
+        flow,
+        errorCode: 'account_already_exists'
+      });
+    }
+
     return res.status(500).render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: null,
       error: error.message || 'Не удалось сгенерировать код',
-      email
+      email,
+      flow,
+      errorCode: 'server_error'
     });
   }
 });
@@ -139,6 +192,7 @@ router.post('/code/verify', async (req, res) => {
   }
 
   const loginToken = sessionData?.loginToken;
+  const flow = sessionData?.codeFlow || 'login';
   const email = (req.body?.email || '').trim();
   const code = (req.body?.code || '').trim();
 
@@ -149,18 +203,32 @@ router.post('/code/verify', async (req, res) => {
     });
   }
 
+  if (email && !isValidEmail(email)) {
+    return res.status(400).render('code', {
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+      loginToken,
+      message: null,
+      error: 'Введите корректный email',
+      email,
+      flow,
+      errorCode: 'invalid_email'
+    });
+  }
+
   if (!code) {
     return res.status(400).render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: null,
       error: 'Введите код',
-      email
+      email,
+      flow,
+      errorCode: 'invalid_code'
     });
   }
 
   try {
-    await authApiClient.verifyAuthCode(loginToken, code);
+    await authApiClient.verifyAuthCode(loginToken, code, sessionData?.refreshToken || '', flow);
     const verifyResponse = await authApiClient.verifyLoginToken(loginToken);
 
     if (verifyResponse && verifyResponse.status === 'granted') {
@@ -181,20 +249,61 @@ router.post('/code/verify', async (req, res) => {
     }
 
     return res.status(403).render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: null,
       error: verifyResponse?.message || 'Авторизация не завершена. Попробуйте снова.',
-      email
+      email,
+      flow,
+      errorCode: 'authorization_failed'
     });
   } catch (error) {
     console.error('[AUTH CODE] Ошибка при проверке кода:', error);
+
+    if (error && error.status === 404) {
+      return res.status(404).render('code', {
+        title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+        loginToken,
+        message: null,
+        error: 'Аккаунт не найден. Пожалуйста, зарегистрируйтесь.',
+        email,
+        flow,
+        errorCode: 'account_not_found'
+      });
+    }
+
+    if (error && error.status === 409) {
+      return res.status(409).render('code', {
+        title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+        loginToken,
+        message: null,
+        error: 'Аккаунт уже существует. Пожалуйста, войдите.',
+        email,
+        flow,
+        errorCode: 'account_already_exists'
+      });
+    }
+
+    if (error && error.status === 400) {
+      return res.status(400).render('code', {
+        title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
+        loginToken,
+        message: null,
+        error: error.message || 'Неверный код',
+        email,
+        flow,
+        errorCode: 'invalid_code'
+      });
+    }
+
     return res.status(500).render('code', {
-      title: 'Вход по коду',
+      title: flow === 'register' ? 'Регистрация по коду' : 'Вход по коду',
       loginToken,
       message: null,
       error: error.message || 'Не удалось проверить код',
-      email
+      email,
+      flow,
+      errorCode: 'server_error'
     });
   }
 });
@@ -203,7 +312,7 @@ router.post('/code/verify', async (req, res) => {
 router.get('/callback', async (req, res) => {
   const { token } = req.query; // token = loginToken из state
   const { sessionToken, userStatus, sessionData } = req;
-  
+
   console.log(`[AUTH CALLBACK] Token: ${token ? token.substring(0, 10) + '...' : 'нет'}`);
   
   if (userStatus === 'unknown') {
