@@ -206,6 +206,27 @@ class MainApiClient {
   }
 
   /**
+   * Обновить порядок вопросов в тесте
+   */
+  async updateQuestionsOrder(testId, questionIds, accessToken) {
+    return this.request(`/api/tests/${testId}/questions/order`, 'put', { question_ids: questionIds }, accessToken);
+  }
+
+  /**
+   * Обновить тест
+   */
+  async updateTest(testId, testData, accessToken) {
+    return this.request(`/api/tests/${testId}`, 'put', testData, accessToken);
+  }
+
+  /**
+   * Удалить тест
+   */
+  async deleteTest(testId, accessToken) {
+    return this.request(`/api/tests/${testId}`, 'delete', null, accessToken);
+  }
+
+  /**
    * Создать попытку прохождения теста
    */
   async createTestAttempt(attemptData, accessToken) {

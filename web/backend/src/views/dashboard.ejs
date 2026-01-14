@@ -205,6 +205,9 @@
                 <div class="user-name"><strong><%= user.name %></strong></div>
                 <div class="user-email"><%= user.email %></div>
             </div>
+            <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">📝 Панель преподавателя</a>
+            <% } %>
             <a href="/auth/confirm" class="confirm-btn">Подтвердить вход</a>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>

@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth');
 const mainRoutes = require('./routes/main');
 const apiRoutes = require('./routes/api');
 const mockRoutes = require('./routes/mock'); // Добавляем маршруты заглушек
+const teacherRoutes = require('./routes/teacher'); // Маршруты редактора курсов
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,6 +39,7 @@ app.use('/', mainRoutes);
 app.use('/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/mock', mockRoutes); // Подключаем маршруты заглушек
+app.use('/teacher', teacherRoutes); // Панель преподавателя и редактор курсов
 
 // Обработка 404
 app.use((req, res) => {

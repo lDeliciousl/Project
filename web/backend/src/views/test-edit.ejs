@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование теста - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; min-height: 80px; }
+        .logo { font-size: 24px; font-weight: bold; color: #667eea; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+        .logo-icon { font-size: 28px; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; transition: all 0.3s; }
+        .nav-btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .nav-btn-secondary:hover { background: #cbd5e0; }
+        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; }
+        .logout-btn:hover { background: #ff3742; }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .page-title { font-size: 28px; color: #333; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; transition: all 0.3s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-success:hover { background: #38a169; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .grid-2 { display: grid; grid-template-columns: 350px 1fr; gap: 30px; }
+        .section { background: white; border-radius: 10px; padding: 25px; margin-bottom: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+        .section-title { font-size: 18px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
+        .form-input, .form-textarea { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: #667eea; }
+        .form-textarea { resize: vertical; min-height: 80px; }
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8fafc; border-radius: 8px; margin-bottom: 15px; }
+        .toggle-label { font-weight: 500; }
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e0; transition: .3s; border-radius: 26px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #48bb78; }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .questions-container { min-height: 200px; }
+        .question-item { display: flex; align-items: flex-start; gap: 15px; padding: 15px; background: #f8fafc; border-radius: 10px; margin-bottom: 10px; border: 2px solid #e2e8f0; cursor: grab; transition: all 0.3s; }
+        .question-item:hover { border-color: #667eea; }
+        .question-item.dragging { opacity: 0.5; border-color: #667eea; background: #e8ecff; }
+        .question-item.drag-over { border-color: #48bb78; background: #f0fff4; }
+        .drag-handle { color: #a0aec0; font-size: 20px; cursor: grab; user-select: none; }
+        .question-number { background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+        .question-content { flex: 1; }
+        .question-title { font-weight: 600; margin-bottom: 5px; color: #333; }
+        .question-text { font-size: 13px; color: #718096; margin-bottom: 8px; line-height: 1.4; }
+        .question-meta { display: flex; gap: 15px; font-size: 12px; color: #a0aec0; }
+        .question-actions { display: flex; flex-direction: column; gap: 5px; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .available-questions { max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+        .available-question { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .available-question:hover { border-color: #667eea; }
+        .aq-info { flex: 1; }
+        .aq-title { font-weight: 500; font-size: 14px; }
+        .aq-meta { font-size: 12px; color: #718096; }
+        .search-input { width: 100%; padding: 10px 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; margin-bottom: 15px; }
+        .search-input:focus { outline: none; border-color: #667eea; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-warning { background: #fefcbf; color: #744210; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 12px; padding: 30px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 20px; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #718096; }
+        .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .tabs { display: flex; gap: 5px; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; border: none; background: #e2e8f0; border-radius: 8px 8px 0 0; cursor: pointer; font-size: 14px; }
+        .tab.active { background: #667eea; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .header { padding: 15px 20px; } .page-header { flex-direction: column; gap: 15px; align-items: flex-start; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo"><span class="logo-icon">📚</span><span>Система тестирования</span></a>
+        <div class="nav-links">
+            <a href="/teacher/course/<%= test.course_id || '' %>" class="nav-btn nav-btn-secondary">← Назад к курсу</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / 
+            <% if (course) { %><a href="/teacher/course/<%= course.id %>"><%= course.name %></a> / <% } %>
+            <%= test.name %>
+        </div>
+
+        <% if (typeof message !== 'undefined' && message) { %><div class="alert alert-success"><%= message %></div><% } %>
+        <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+        <% if (test.has_attempts) { %><div class="alert alert-warning">⚠️ У этого теста уже есть попытки прохождения. Изменение вопросов ограничено.</div><% } %>
+
+        <div class="page-header">
+            <h1 class="page-title">Редактирование теста</h1>
+            <div class="header-actions">
+                <a href="/test/<%= test.id %>" class="btn btn-outline">👁 Предпросмотр</a>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="section">
+                    <div class="section-header"><h2 class="section-title">Настройки теста</h2></div>
+                    <form id="testInfoForm" onsubmit="updateTestInfo(event)">
+                        <div class="form-group">
+                            <label class="form-label">Название теста *</label>
+                            <input type="text" class="form-input" name="name" value="<%= test.name %>" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Описание</label>
+                            <textarea class="form-textarea" name="description"><%= test.description || '' %></textarea>
+                        </div>
+                        <div class="toggle-row">
+                            <span class="toggle-label">Тест активен</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="isActiveToggle" <%= test.is_active ? 'checked' : '' %> onchange="toggleTestActive(this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width:100%">Сохранить настройки</button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <div class="section-header"><h2 class="section-title">Добавить вопрос</h2></div>
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('existing')">Из банка</button>
+                        <button class="tab" onclick="switchTab('new')">Создать новый</button>
+                    </div>
+                    
+                    <div id="tab-existing" class="tab-content active">
+                        <input type="text" class="search-input" placeholder="Поиск вопросов..." oninput="filterQuestions(this.value)">
+                        <div class="available-questions" id="availableQuestions">
+                            <% if (availableQuestions && availableQuestions.length > 0) { %>
+                                <% availableQuestions.forEach(q => { %>
+                                    <div class="available-question" data-title="<%= (q.title || q.text || '').toLowerCase() %>">
+                                        <div class="aq-info">
+                                            <div class="aq-title"><%= q.title || q.text %></div>
+                                            <div class="aq-meta">v<%= q.version || 1 %> • <%= q.options ? q.options.length : 0 %> вариантов</div>
+                                        </div>
+                                        <button class="btn btn-success btn-sm" onclick="addQuestionToTest('<%= q.id %>')">+ Добавить</button>
+                                    </div>
+                                <% }); %>
+                            <% } else { %>
+                                <div class="empty-state"><p>Нет доступных вопросов</p></div>
+                            <% } %>
+                        </div>
+                    </div>
+                    
+                    <div id="tab-new" class="tab-content">
+                        <form id="newQuestionForm" onsubmit="createAndAddQuestion(event)">
+                            <div class="form-group">
+                                <label class="form-label">Название *</label>
+                                <input type="text" class="form-input" name="title" required placeholder="Краткое название">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Текст вопроса *</label>
+                                <textarea class="form-textarea" name="text" required placeholder="Полный текст..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Варианты (по одному на строку) *</label>
+                                <textarea class="form-textarea" name="options" required placeholder="Вариант 1&#10;Вариант 2&#10;Вариант 3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Номер правильного ответа *</label>
+                                <input type="number" class="form-input" name="correct" min="1" required placeholder="1">
+                            </div>
+                            <button type="submit" class="btn btn-success" style="width:100%">Создать и добавить</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Вопросы теста (<span id="questionsCount"><%= test.questions ? test.questions.length : 0 %></span>)</h2>
+                        <button class="btn btn-primary btn-sm" onclick="saveQuestionsOrder()" id="saveOrderBtn" style="display:none">💾 Сохранить порядок</button>
+                    </div>
+                    
+                    <div class="questions-container" id="questionsContainer">
+                        <% if (test.questions && test.questions.length > 0) { %>
+                            <% test.questions.forEach((q, index) => { %>
+                                <div class="question-item" draggable="true" data-id="<%= q.id %>" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+                                    <span class="drag-handle">⠿</span>
+                                    <span class="question-number"><%= index + 1 %></span>
+                                    <div class="question-content">
+                                        <div class="question-title"><%= q.title || 'Вопрос' %></div>
+                                        <div class="question-text"><%= q.text ? q.text.substring(0, 100) + (q.text.length > 100 ? '...' : '') : '' %></div>
+                                        <div class="question-meta">
+                                            <span>v<%= q.version || 1 %></span>
+                                            <span><%= q.options ? q.options.length : 0 %> вариантов</span>
+                                        </div>
+                                    </div>
+                                    <div class="question-actions">
+                                        <a href="/teacher/question/<%= q.id %>" class="btn btn-outline btn-sm">✏️</a>
+                                        <button class="btn btn-danger btn-sm" onclick="removeQuestion('<%= q.id %>')">✕</button>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        <% } else { %>
+                            <div class="empty-state" id="emptyQuestions">
+                                <div class="empty-state-icon">📝</div>
+                                <p>В тесте пока нет вопросов</p>
+                                <p style="margin-top: 10px; font-size: 14px;">Добавьте вопросы из банка или создайте новые</p>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const testId = '<%= test.id %>';
+        const courseId = '<%= test.course_id || "" %>';
+        let orderChanged = false;
+        let draggedElement = null;
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tabName).classList.add('active');
+        }
+
+        function filterQuestions(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.available-question').forEach(el => {
+                const title = el.getAttribute('data-title') || '';
+                el.style.display = title.includes(q) ? 'flex' : 'none';
+            });
+        }
+
+        async function updateTestInfo(e) {
+            e.preventDefault();
+            const form = e.target;
+            try {
+                const res = await fetch('/api/tests/' + testId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: form.name.value, description: form.description.value })
+                });
+                if (res.ok) { alert('Тест обновлён'); location.reload(); }
+                else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось обновить')); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); }
+        }
+
+        async function toggleTestActive(isActive) {
+            try {
+                const res = await fetch('/api/tests/' + testId + '/activate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                if (!res.ok) { const err = await res.json(); alert('Ошибка: ' + (err.error || '')); location.reload(); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); location.reload(); }
+        }
+
+        async function addQuestionToTest(questionId) {
+            try {
+                const res = await fetch('/api/tests/' + testId + '/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question_id: questionId })
+                });
+                if (res.ok) location.reload();
+                else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось добавить')); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); }
+        }
+
+        async function removeQuestion(questionId) {
+            if (!confirm('Удалить вопрос из теста?')) return;
+            try {
+                const res = await fetch('/api/tests/' + testId + '/questions/' + questionId, { method: 'DELETE' });
+                if (res.ok) location.reload();
+                else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось удалить')); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); }
+        }
+
+        async function createAndAddQuestion(e) {
+            e.preventDefault();
+            const form = e.target;
+            const opts = form.options.value.trim().split('\n').filter(o => o.trim()).map((text, i) => ({ text: text.trim(), id: 'opt_' + i }));
+            const data = { title: form.title.value, text: form.text.value, options: opts, correct_option_index: parseInt(form.correct.value) - 1 };
+            try {
+                const res = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                if (res.ok) {
+                    const q = await res.json();
+                    await addQuestionToTest(q.id);
+                } else { const err = await res.json(); alert('Ошибка: ' + (err.error || '')); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); }
+        }
+
+        function dragStart(e) {
+            draggedElement = e.target.closest('.question-item');
+            draggedElement.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+            const target = e.target.closest('.question-item');
+            if (target && target !== draggedElement) {
+                target.classList.add('drag-over');
+            }
+        }
+
+        function dragLeave(e) {
+            const target = e.target.closest('.question-item');
+            if (target) target.classList.remove('drag-over');
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            const target = e.target.closest('.question-item');
+            if (target && target !== draggedElement) {
+                const container = document.getElementById('questionsContainer');
+                const items = [...container.querySelectorAll('.question-item')];
+                const draggedIdx = items.indexOf(draggedElement);
+                const targetIdx = items.indexOf(target);
+                if (draggedIdx < targetIdx) {
+                    target.after(draggedElement);
+                } else {
+                    target.before(draggedElement);
+                }
+                updateQuestionNumbers();
+                orderChanged = true;
+                document.getElementById('saveOrderBtn').style.display = 'inline-flex';
+            }
+            document.querySelectorAll('.question-item').forEach(el => {
+                el.classList.remove('dragging', 'drag-over');
+            });
+        }
+
+        function updateQuestionNumbers() {
+            const items = document.querySelectorAll('.question-item');
+            items.forEach((item, idx) => {
+                const numEl = item.querySelector('.question-number');
+                if (numEl) numEl.textContent = idx + 1;
+            });
+            document.getElementById('questionsCount').textContent = items.length;
+        }
+
+        async function saveQuestionsOrder() {
+            const items = document.querySelectorAll('.question-item');
+            const questionIds = [...items].map(el => el.getAttribute('data-id'));
+            try {
+                const res = await fetch('/api/tests/' + testId + '/questions/order', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question_ids: questionIds })
+                });
+                if (res.ok) {
+                    alert('Порядок сохранён');
+                    orderChanged = false;
+                    document.getElementById('saveOrderBtn').style.display = 'none';
+                } else { const err = await res.json(); alert('Ошибка: ' + (err.error || '')); }
+            } catch (err) { alert('Ошибка сети: ' + err.message); }
+        }
+
+        window.addEventListener('beforeunload', (e) => {
+            if (orderChanged) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

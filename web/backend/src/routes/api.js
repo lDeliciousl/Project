@@ -168,6 +168,33 @@ router.delete('/tests/:testId/questions/:questionId', requireAuth, async (req, r
   }
 });
 
+router.put('/tests/:id/questions/order', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.updateQuestionsOrder(req.params.id, req.body.question_ids, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
+router.put('/tests/:id', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.updateTest(req.params.id, req.body, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
+router.delete('/tests/:id', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.deleteTest(req.params.id, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
 router.post('/tests/attempts', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.createTestAttempt(req.body, getAccessToken(req));
