@@ -32,7 +32,6 @@ int main() {
     server.Post("/api/tests", CreateTestHandler);
     server.Get("/api/tests", GetTestsHandler);
     server.Get(R"(/api/tests/([^/]+))", GetTestDetailsHandler);
-    server.Post(R"(/api/tests/([^/]+)/questions)", AddQuestionHandler);
     
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("{\"status\": \"ok\"}", "application/json");

@@ -58,7 +58,9 @@ bool Unauthorized(httplib::Response& res, const AuthContext& ctx) {
 }
 
 bool CheckAccess(const AuthContext& ctx, const std::string& value, httplib::Response& res) {
-    const bool ok = std::find(ctx.permissions.begin(), ctx.permissions.end(), value) != ctx.permissions.end();
+    const bool ok =
+        std::find(ctx.permissions.begin(), ctx.permissions.end(), "*") != ctx.permissions.end() ||
+        std::find(ctx.permissions.begin(), ctx.permissions.end(), value) != ctx.permissions.end();
     if (!ok) {
         res.status = 403;
         res.set_content("{\"error\": \"Forbidden\"}", "application/json");

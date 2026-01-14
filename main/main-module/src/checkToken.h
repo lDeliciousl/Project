@@ -28,7 +28,8 @@ struct AuthContext {
 };
 
 inline bool is_uuid_like(const std::string& s) {
-    if (s.size() < 32 || s.size() > 64) return false;
+    // Support UUID-like ids and MongoDB ObjectId (24 hex chars)
+    if (s.size() < 24 || s.size() > 64) return false;
     for (char c : s) {
         if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == '-') {
             continue;
@@ -207,6 +208,16 @@ inline AuthContext CheckToken(const httplib::Request& req) {
             std::string perm = scope.substr(start, end - start);
             if (!perm.empty()) ctx.permissions.push_back(perm);
             start = end + 1;
+        }
+    }
+
+    // Simple role bridge: if auth token includes admin role, allow all actions.
+    if (payload_json->contains("roles") && (*payload_json)["roles"].is_array()) {
+        for (const auto& r : (*payload_json)["roles"]) {
+            if (r.is_string() && r.get<std::string>() == "admin") {
+                ctx.permissions.push_back("*");
+                break;
+            }
         }
     }
 
