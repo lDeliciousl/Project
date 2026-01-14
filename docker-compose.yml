@@ -16,8 +16,6 @@ services:
     image: redis:7-alpine
     container_name: testing-web-redis
     command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -65,8 +63,6 @@ services:
       POSTGRES_DB: testing_system
       POSTGRES_USER: main_module
       POSTGRES_PASSWORD: secret123
-    ports:
-      - "5433:5432"
     volumes:
       - main_postgres_data:/var/lib/postgresql/data
       - ./main/main-module/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -114,8 +110,6 @@ services:
     image: mongo:6
     container_name: auth-mongo
     restart: unless-stopped
-    ports:
-      - "27017:27017"
     volumes:
       - auth_mongo_data:/data/db
     networks:
@@ -131,8 +125,6 @@ services:
     image: redis:7-alpine
     container_name: auth-redis
     restart: unless-stopped
-    ports:
-      - "6380:6379"
     volumes:
       - auth_redis_data:/data
     networks:

@@ -15,6 +15,7 @@ import (
 type SessionRepository interface {
 	Create(ctx context.Context, session *models.LoginSession) error
 	FindByLoginToken(ctx context.Context, loginToken string) (*models.LoginSession, error)
+	FindByCode(ctx context.Context, code string) (*models.LoginSession, error)
 	UpdateStatus(ctx context.Context, loginToken string, status models.SessionStatus) error
 	UpdateTokens(ctx context.Context, loginToken, accessToken, refreshToken string, userID primitive.ObjectID) error
 	SetCode(ctx context.Context, loginToken, code, email string, codeExpiresAt time.Time) error
@@ -60,6 +61,15 @@ func (r *sessionRepository) Create(ctx context.Context, session *models.LoginSes
 func (r *sessionRepository) FindByLoginToken(ctx context.Context, loginToken string) (*models.LoginSession, error) {
 	var session models.LoginSession
 	err := r.collection.FindOne(ctx, bson.M{"login_token": loginToken}).Decode(&session)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	return &session, err
+}
+
+func (r *sessionRepository) FindByCode(ctx context.Context, code string) (*models.LoginSession, error) {
+	var session models.LoginSession
+	err := r.collection.FindOne(ctx, bson.M{"code": code}).Decode(&session)
 	if err == mongo.ErrNoDocuments {
 		return nil, nil
 	}

@@ -299,6 +299,50 @@ func (h *AuthHandler) VerifyAuthCode(c *gin.Context) {
 	})
 }
 
+// VerifyConfirmCode подтверждает код авторизации с авторизованного устройства
+// @Summary Подтверждение кода авторизации
+// @Description Авторизованный пользователь подтверждает код для входа на другом устройстве
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body models.VerifyConfirmRequest true "Код и refresh token"
+// @Success 200
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/auth/confirm/verify [post]
+func (h *AuthHandler) VerifyConfirmCode(c *gin.Context) {
+	var req models.VerifyConfirmRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "Invalid request body",
+		})
+		return
+	}
+
+	err := h.authService.VerifyConfirmCode(c.Request.Context(), req.Code, req.RefreshToken)
+	if err != nil {
+		if errors.Is(err, services.ErrAccountNotFound) {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+			return
+		}
+		if err.Error() == "invalid code" || err.Error() == "code expired" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Confirm code verified successfully",
+	})
+}
+
 // HealthCheck проверяет работоспособность сервиса
 func (h *AuthHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{

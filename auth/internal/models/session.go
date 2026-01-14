@@ -54,7 +54,7 @@ type TokenPair struct {
 
 // InitRequest запрос на инициализацию авторизации
 type InitRequest struct {
-	Type       string `json:"type" binding:"required,oneof=github yandex code"`
+	Type       string `json:"type" binding:"required,oneof=github yandex code confirm"`
 	LoginToken string `json:"login_token" binding:"required"`
 }
 
@@ -105,4 +105,30 @@ type VerifyCodeRequest struct {
 	Code         string `json:"code" binding:"required"`
 	RefreshToken string `json:"refresh_token"` // Может использоваться как fallback, если email не сохранен в сессии
 	Flow         string `json:"flow" binding:"omitempty,oneof=login register"`
+}
+
+// ConfirmCode для авторизации по коду подтверждения (с другого устройства по ТЗ)
+type ConfirmCode struct {
+	Code       string    `bson:"code" json:"code"`
+	LoginToken string    `bson:"login_token" json:"login_token"`
+	IsUsed     bool      `bson:"is_used" json:"is_used"`
+	ExpiresAt  time.Time `bson:"expires_at" json:"expires_at"`
+	CreatedAt  time.Time `bson:"created_at" json:"created_at"`
+}
+
+// InitConfirmRequest запрос на инициализацию авторизации по коду подтверждения
+type InitConfirmRequest struct {
+	LoginToken string `json:"login_token" binding:"required"`
+}
+
+// InitConfirmResponse ответ на инициализацию авторизации по коду подтверждения
+type InitConfirmResponse struct {
+	Code      string `json:"code"`
+	ExpiresIn int    `json:"expires_in"` // секунды до истечения
+}
+
+// VerifyConfirmRequest запрос на подтверждение кода с авторизованного устройства
+type VerifyConfirmRequest struct {
+	Code         string `json:"code" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"required"` // Refresh token авторизованного пользователя
 }

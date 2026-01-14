@@ -21,6 +21,7 @@ type AuthService interface {
 	VerifyAuthStatus(ctx context.Context, loginToken string) (*models.VerifyResponse, error)
 	GenerateAuthCode(ctx context.Context, loginToken, email, flow string) (string, error)
 	VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken, flow string) error
+	VerifyConfirmCode(ctx context.Context, code, refreshToken string) error
 	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
 }
@@ -61,6 +62,8 @@ func (s *authService) InitAuth(ctx context.Context, authType, loginToken string)
 		return s.initOAuth(ctx, authType, loginToken)
 	case "code":
 		return s.initCodeAuth(ctx, loginToken)
+	case "confirm":
+		return s.initConfirmAuth(ctx, loginToken)
 	default:
 		return "", fmt.Errorf("unsupported auth type: %s", authType)
 	}
@@ -88,7 +91,7 @@ func (s *authService) initOAuth(ctx context.Context, providerType, loginToken st
 	return authURL, nil
 }
 
-// initCodeAuth инициализирует авторизацию по коду
+// initCodeAuth инициализирует авторизацию по коду (email OTP)
 func (s *authService) initCodeAuth(ctx context.Context, loginToken string) (string, error) {
 	// Создаем сессию для кода
 	session := &models.LoginSession{
@@ -104,6 +107,107 @@ func (s *authService) initCodeAuth(ctx context.Context, loginToken string) (stri
 	// Для кодовой авторизации не нужен URL для редиректа
 	// Клиент должен отправить email и получить код
 	return "code_auth_initialized", nil
+}
+
+// initConfirmAuth инициализирует авторизацию по коду подтверждения (с другого устройства по ТЗ)
+// Генерирует код, который показывается на новом устройстве и вводится на авторизованном
+func (s *authService) initConfirmAuth(ctx context.Context, loginToken string) (string, error) {
+	// Генерируем 6-значный код
+	code := generateRandomCode(6)
+
+	// Создаем сессию для confirm
+	session := &models.LoginSession{
+		LoginToken:    loginToken,
+		Status:        models.StatusPending,
+		Type:          "confirm",
+		Code:          code,
+		CodeExpiresAt: time.Now().Add(s.codeExpiry),
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	log.Printf("[CONFIRM AUTH] Код подтверждения для loginToken %s: %s", loginToken[:8], code)
+
+	// Возвращаем код - он будет показан пользователю на новом устройстве
+	return code, nil
+}
+
+// VerifyConfirmCode проверяет код подтверждения с авторизованного устройства
+func (s *authService) VerifyConfirmCode(ctx context.Context, code, refreshToken string) error {
+	// Валидируем refresh token и получаем email
+	email, err := s.jwtService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return fmt.Errorf("invalid refresh token: %w", err)
+	}
+
+	// Ищем пользователя по email
+	user, err := s.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return ErrAccountNotFound
+	}
+
+	// Ищем сессию по коду
+	session, err := s.sessionRepo.FindByCode(ctx, code)
+	if err != nil {
+		return fmt.Errorf("failed to find session: %w", err)
+	}
+	if session == nil {
+		return errors.New("invalid code")
+	}
+
+	if session.Type != "confirm" {
+		return errors.New("invalid session type for confirm")
+	}
+
+	if session.Status != models.StatusPending {
+		return errors.New("session already processed")
+	}
+
+	if time.Now().After(session.CodeExpiresAt) {
+		_ = s.sessionRepo.UpdateStatus(ctx, session.LoginToken, models.StatusExpired)
+		return errors.New("code expired")
+	}
+
+	// Генерируем токены для нового устройства
+	accessToken, err := s.jwtService.GenerateAccessToken(
+		user.ID.Hex(),
+		user.Email,
+		user.Roles,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to generate access token: %w", err)
+	}
+
+	newRefreshToken, err := s.jwtService.GenerateRefreshToken(user.Email)
+	if err != nil {
+		return fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	// Сохраняем новый refresh токен
+	refreshTokenModel := models.RefreshToken{
+		Token:     newRefreshToken,
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	err = s.userRepo.AddRefreshToken(ctx, user.ID, refreshTokenModel)
+	if err != nil {
+		return fmt.Errorf("failed to save refresh token: %w", err)
+	}
+
+	// Обновляем сессию с токенами
+	err = s.sessionRepo.UpdateTokens(ctx, session.LoginToken, accessToken, newRefreshToken, user.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update session: %w", err)
+	}
+
+	log.Printf("[CONFIRM AUTH] Код %s подтверждён пользователем %s", code, email)
+
+	return nil
 }
 
 // HandleOAuthCallback обрабатывает callback от OAuth провайдера
