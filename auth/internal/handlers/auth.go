@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -230,8 +231,16 @@ func (h *AuthHandler) GenerateAuthCode(c *gin.Context) {
 		return
 	}
 
-	code, err := h.authService.GenerateAuthCode(c.Request.Context(), req.LoginToken, req.Email)
+	code, err := h.authService.GenerateAuthCode(c.Request.Context(), req.LoginToken, req.Email, req.Flow)
 	if err != nil {
+		if errors.Is(err, services.ErrAccountNotFound) {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrAccountAlreadyExists) {
+			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
 		})
@@ -264,8 +273,20 @@ func (h *AuthHandler) VerifyAuthCode(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.VerifyAuthCode(c.Request.Context(), req.LoginToken, req.Code, req.RefreshToken)
+	err := h.authService.VerifyAuthCode(c.Request.Context(), req.LoginToken, req.Code, req.RefreshToken, req.Flow)
 	if err != nil {
+		if errors.Is(err, services.ErrAccountNotFound) {
+			c.JSON(http.StatusNotFound, ErrorResponse{Error: err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrAccountAlreadyExists) {
+			c.JSON(http.StatusConflict, ErrorResponse{Error: err.Error()})
+			return
+		}
+		if err.Error() == "invalid code" || err.Error() == "code expired" {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
 		})

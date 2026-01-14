@@ -91,6 +91,7 @@ type LogoutRequest struct {
 type GenerateCodeRequest struct {
 	LoginToken string `json:"login_token" binding:"required"`
 	Email      string `json:"email" binding:"required,email"`
+	Flow       string `json:"flow" binding:"omitempty,oneof=login register"`
 }
 
 // GenerateCodeResponse ответ на генерацию кода
@@ -103,4 +104,5 @@ type VerifyCodeRequest struct {
 	LoginToken   string `json:"login_token" binding:"required"`
 	Code         string `json:"code" binding:"required"`
 	RefreshToken string `json:"refresh_token"` // Может использоваться как fallback, если email не сохранен в сессии
+	Flow         string `json:"flow" binding:"omitempty,oneof=login register"`
 }

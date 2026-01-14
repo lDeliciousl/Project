@@ -19,8 +19,8 @@ type AuthService interface {
 	InitAuth(ctx context.Context, authType, loginToken string) (string, error)
 	HandleOAuthCallback(ctx context.Context, providerType, code, state string) error
 	VerifyAuthStatus(ctx context.Context, loginToken string) (*models.VerifyResponse, error)
-	GenerateAuthCode(ctx context.Context, loginToken, email string) (string, error)
-	VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken string) error
+	GenerateAuthCode(ctx context.Context, loginToken, email, flow string) (string, error)
+	VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken, flow string) error
 	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
 }
@@ -32,6 +32,11 @@ type authService struct {
 	oauthManager *oauth.Manager
 	codeExpiry   time.Duration
 }
+
+var (
+	ErrAccountNotFound     = errors.New("account not found")
+	ErrAccountAlreadyExists = errors.New("account already exists")
+)
 
 func NewAuthService(
 	sessionRepo repository.SessionRepository,
@@ -176,7 +181,7 @@ func (s *authService) HandleOAuthCallback(ctx context.Context, providerType, cod
 }
 
 // GenerateAuthCode генерирует код для авторизации
-func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email string) (string, error) {
+func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email, flow string) (string, error) {
 	// Проверяем сессию
 	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
 	if err != nil {
@@ -189,6 +194,30 @@ func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email st
 
 	if session.Type != "code" {
 		return "", errors.New("invalid session type")
+	}
+
+	if flow == "" {
+		flow = "login"
+	}
+
+	if flow == "login" {
+		existing, err := s.userRepo.FindByEmail(ctx, email)
+		if err != nil {
+			return "", fmt.Errorf("failed to find user: %w", err)
+		}
+		if existing == nil {
+			return "", ErrAccountNotFound
+		}
+	}
+
+	if flow == "register" {
+		existing, err := s.userRepo.FindByEmail(ctx, email)
+		if err != nil {
+			return "", fmt.Errorf("failed to find user: %w", err)
+		}
+		if existing != nil {
+			return "", ErrAccountAlreadyExists
+		}
 	}
 
 	// Генерируем случайный код (6 цифр)
@@ -206,7 +235,7 @@ func (s *authService) GenerateAuthCode(ctx context.Context, loginToken, email st
 }
 
 // VerifyAuthCode проверяет код авторизации
-func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken string) error {
+func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code, refreshToken, flow string) error {
 	// Получаем сессию
 	session, err := s.sessionRepo.FindByLoginToken(ctx, loginToken)
 	if err != nil {
@@ -246,18 +275,44 @@ func (s *authService) VerifyAuthCode(ctx context.Context, loginToken, code, refr
 		return errors.New("email not found for code auth")
 	}
 
-	// Создаем или находим пользователя
-	user := &models.User{
-		Email:      email,
-		Provider:   "code",
-		ProviderID: email, // Для code авторизации используем email как provider_id
-		IsActive:   true,
-		// Имя и роль будут установлены в UpsertByProvider для нового пользователя
+	if flow == "" {
+		flow = "login"
 	}
 
-	dbUser, err := s.userRepo.UpsertByProvider(ctx, "code", email, user)
+	existingUser, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
-		return fmt.Errorf("failed to save user: %w", err)
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+
+	if flow == "login" {
+		if existingUser == nil {
+			return ErrAccountNotFound
+		}
+	}
+
+	if flow == "register" {
+		if existingUser != nil {
+			return ErrAccountAlreadyExists
+		}
+	}
+
+	var dbUser *models.User
+	if flow == "login" {
+		dbUser = existingUser
+	} else {
+		// Создаем или находим пользователя
+		user := &models.User{
+			Email:      email,
+			Provider:   "code",
+			ProviderID: email, // Для code авторизации используем email как provider_id
+			IsActive:   true,
+			// Имя и роль будут установлены в UpsertByProvider для нового пользователя
+		}
+
+		dbUser, err = s.userRepo.UpsertByProvider(ctx, "code", email, user)
+		if err != nil {
+			return fmt.Errorf("failed to save user: %w", err)
+		}
 	}
 
 	// Генерируем токены
