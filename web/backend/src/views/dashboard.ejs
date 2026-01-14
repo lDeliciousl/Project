@@ -77,6 +77,21 @@
             transition: background 0.3s;
             white-space: nowrap;
         }
+        .confirm-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        .confirm-btn:hover {
+            background: #5a6fe0;
+        }
         .logout-btn:hover {
             background: #ff3742;
         }
@@ -190,6 +205,7 @@
                 <div class="user-name"><strong><%= user.name %></strong></div>
                 <div class="user-email"><%= user.email %></div>
             </div>
+            <a href="/auth/confirm" class="confirm-btn">Подтвердить вход</a>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>
     </div>

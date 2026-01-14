@@ -18,7 +18,7 @@ router.get('/login/:type', async (req, res) => {
   const { sessionToken, userStatus } = req;
 
   // Допустимые типы авторизации
-  const validTypes = ['github', 'yandex', 'code'];
+  const validTypes = ['github', 'yandex', 'code', 'confirm'];
   if (!validTypes.includes(type)) {
     return res.redirect('/');
   }
@@ -70,6 +70,19 @@ router.get('/login/:type', async (req, res) => {
           error: null,
           email: '',
           flow: flow === 'register' ? 'register' : 'login'
+        });
+      }
+
+      if (type === 'confirm') {
+        // Для confirm auth-module возвращает код подтверждения напрямую
+        const confirmCode = authResponse.auth_url; // auth_url содержит сгенерированный код
+        return res.render('confirm', {
+          title: 'Вход по коду подтверждения',
+          loginToken: loginToken,
+          confirmCode: confirmCode,
+          expiresIn: 60, // 1 минута
+          message: null,
+          error: null
         });
       }
 
@@ -401,14 +414,23 @@ router.get('/error', (req, res) => {
 // Проверка статуса авторизации (для AJAX)
 router.get('/status', async (req, res) => {
   const { sessionData, userStatus, sessionToken } = req;
+  const queryLoginToken = (req.query?.loginToken || '').toString().trim();
+  const effectiveLoginToken = sessionData?.loginToken || queryLoginToken;
   
-  // Если пользователь анонимный, проверяем статус через auth модуль
-  if (userStatus === 'anonymous' && sessionData?.loginToken) {
+  if ((userStatus === 'anonymous' || userStatus === 'unknown') && effectiveLoginToken) {
     try {
-      const verifyResponse = await authApiClient.verifyLoginToken(sessionData.loginToken);
+      const verifyResponse = await authApiClient.verifyLoginToken(effectiveLoginToken);
       
       if (verifyResponse && verifyResponse.status === 'granted') {
         // Авторизация завершена, обновляем сессию
+        if (!sessionToken) {
+          return res.json({
+            status: 'authenticated',
+            data: null,
+            timestamp: new Date().toISOString()
+          });
+        }
+
         const userData = verifyResponse.user_data;
         await sessionManager.updateToAuthenticated(
           sessionToken,
@@ -469,6 +491,81 @@ router.get('/status', async (req, res) => {
     } : null,
     timestamp: new Date().toISOString()
   });
+});
+
+// Страница для ввода кода подтверждения на авторизованном устройстве
+router.get('/confirm', (req, res) => {
+  const { userStatus } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.status(401).render('confirm-input', {
+      title: 'Подтвердить вход на другом устройстве',
+      message: null,
+      error: 'Нужно войти в аккаунт на этом устройстве, чтобы подтвердить код.'
+    });
+  }
+  
+  res.render('confirm-input', {
+    title: 'Подтвердить вход на другом устройстве',
+    message: null,
+    error: null
+  });
+});
+
+// Обработка подтверждения кода с авторизованного устройства
+router.post('/confirm/verify', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.status(401).render('confirm-input', {
+      title: 'Подтвердить вход на другом устройстве',
+      message: null,
+      error: 'Нужно войти в аккаунт на этом устройстве, чтобы подтвердить код.'
+    });
+  }
+  
+  const code = (req.body?.code || '').trim();
+  const refreshToken = sessionData?.refreshToken;
+  
+  if (!code) {
+    return res.status(400).render('confirm-input', {
+      title: 'Подтвердить вход на другом устройстве',
+      message: null,
+      error: 'Введите код подтверждения'
+    });
+  }
+  
+  if (!refreshToken) {
+    return res.status(400).render('error', {
+      title: 'Ошибка',
+      message: 'Не найден токен авторизации. Попробуйте войти заново.'
+    });
+  }
+  
+  try {
+    await authApiClient.verifyConfirmCode(code, refreshToken);
+    
+    return res.render('confirm-input', {
+      title: 'Подтвердить вход на другом устройстве',
+      message: 'Код подтверждён! Вход на другом устройстве выполнен.',
+      error: null
+    });
+  } catch (error) {
+    console.error('[CONFIRM CODE] Ошибка при подтверждении кода:', error);
+    
+    let errorMsg = 'Не удалось подтвердить код';
+    if (error.message === 'invalid code') {
+      errorMsg = 'Неверный код подтверждения';
+    } else if (error.message === 'code expired') {
+      errorMsg = 'Код подтверждения истёк';
+    }
+    
+    return res.status(400).render('confirm-input', {
+      title: 'Подтвердить вход на другом устройстве',
+      message: null,
+      error: errorMsg
+    });
+  }
 });
 
 // Быстрый вход для тестирования

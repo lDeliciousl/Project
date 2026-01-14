@@ -1,4 +1,5 @@
 const sessionManager = require('../utils/session');
+const authApiClient = require('../utils/authApiClient');
 
 async function sessionMiddleware(req, res, next) {
   const sessionToken = req.cookies.session_token;
@@ -35,6 +36,48 @@ async function sessionMiddleware(req, res, next) {
     lastActivity: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   });
+
+  // По ТЗ: для anonymous пользователей проверяем статус loginToken через auth-module
+  // Это делается на каждом запросе (кроме /auth/* чтобы избежать циклов)
+  if (sessionData.status === 'anonymous' && sessionData.loginToken && !req.path.startsWith('/auth')) {
+    try {
+      const verifyResponse = await authApiClient.verifyLoginToken(sessionData.loginToken);
+      
+      if (verifyResponse && verifyResponse.status === 'granted') {
+        // Авторизация завершена - обновляем сессию
+        const userData = verifyResponse.user_data;
+        await sessionManager.updateToAuthenticated(
+          sessionToken,
+          verifyResponse.access_token,
+          verifyResponse.refresh_token,
+          userData || {
+            id: `user_${Date.now()}`,
+            email: 'unknown@example.com',
+            name: 'Пользователь',
+            roles: ['student']
+          }
+        );
+        
+        // Обновляем данные в запросе
+        req.userStatus = 'authenticated';
+        req.sessionData = await sessionManager.getSession(sessionToken);
+        console.log('[SESSION] Пользователь автоматически авторизован через loginToken');
+      } else if (verifyResponse && (verifyResponse.status === 'denied' || verifyResponse.status === 'expired')) {
+        // Авторизация отклонена или истекла - удаляем сессию
+        await sessionManager.deleteSession(sessionToken);
+        res.clearCookie('session_token');
+        req.userStatus = 'unknown';
+        req.sessionToken = null;
+        req.sessionData = null;
+        console.log('[SESSION] Сессия удалена: loginToken denied/expired');
+        return res.redirect('/');
+      }
+      // Если status === 'pending' - ничего не делаем, оставляем anonymous
+    } catch (error) {
+      // Ошибка при проверке - продолжаем с текущим статусом
+      console.warn('[SESSION] Ошибка при проверке loginToken:', error.message || error);
+    }
+  }
 
   next();
 }

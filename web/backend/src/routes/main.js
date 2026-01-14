@@ -16,7 +16,8 @@ router.get('/', async (req, res) => {
         authMethods: [
           { type: 'github', name: 'GitHub', icon: 'github' },
           { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
-          { type: 'code', name: 'Код авторизации', icon: 'key' }
+          { type: 'code', name: 'Код на email', icon: 'key' },
+          { type: 'confirm', name: 'Подтверждение', icon: 'phone' }
         ]
       });
       break;
@@ -134,7 +135,8 @@ router.get('/login', (req, res) => {
     authMethods: [
       { type: 'github', name: 'GitHub', icon: 'github' },
       { type: 'yandex', name: 'Яндекс ID', icon: 'yandex' },
-      { type: 'code', name: 'Код авторизации', icon: 'key' }
+      { type: 'code', name: 'Код авторизации', icon: 'key' },
+      { type: 'confirm', name: 'Подтверждение', icon: 'phone' }
     ]
   });
 });
@@ -158,24 +160,29 @@ router.get('/register', (req, res) => {
 });
 
 // Выход из системы
+// GET /logout - выход только на этом устройстве (удаление Redis сессии)
+// GET /logout?all=true - выход на всех устройствах (+ инвалидация refresh token в auth модуле)
 router.get('/logout', async (req, res) => {
   const { sessionToken, sessionData } = req;
   const sessionManager = require('../utils/session');
   const authApiClient = require('../utils/authApiClient');
   
-  // Если есть refresh токен, вызываем logout в auth модуле
-  if (sessionData?.refreshToken) {
+  const logoutAll = req.query.all === 'true';
+  
+  // Если all=true и есть refresh токен, вызываем logout в auth модуле (инвалидируем на всех устройствах)
+  if (logoutAll && sessionData?.refreshToken) {
     try {
       await authApiClient.logout(sessionData.refreshToken);
-      console.log('[LOGOUT] Токены инвалидированы в auth модуле');
+      console.log('[LOGOUT] Токены инвалидированы в auth модуле (all devices)');
     } catch (error) {
       console.error('[LOGOUT] Ошибка при logout в auth модуле:', error);
-      // Продолжаем удаление сессии даже если logout в auth модуле не удался
     }
   }
   
+  // Удаляем текущую сессию в Redis (всегда)
   if (sessionToken) {
     await sessionManager.deleteSession(sessionToken);
+    console.log('[LOGOUT] Сессия удалена из Redis');
   }
   
   res.clearCookie('session_token');

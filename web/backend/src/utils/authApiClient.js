@@ -161,6 +161,19 @@ class AuthApiClient {
     });
   }
 
+  /**
+   * Подтверждает код авторизации с авторизованного устройства (по ТЗ)
+   * @param {string} code - Код подтверждения
+   * @param {string} refreshToken - Refresh token авторизованного пользователя
+   * @returns {Promise<{status: string}>}
+   */
+  async verifyConfirmCode(code, refreshToken) {
+    return this.request('/api/auth/confirm/verify', 'post', {
+      code: code,
+      refresh_token: refreshToken
+    });
+  }
+
   // ========== Служебные методы ==========
 
   /**

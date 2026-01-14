@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        .code-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 48px;
+            font-weight: bold;
+            letter-spacing: 12px;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        .timer {
+            color: #666;
+            font-size: 14px;
+            margin: 15px 0;
+        }
+        .timer span {
+            font-weight: bold;
+            color: #e53e3e;
+        }
+        .instructions {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .instructions h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .instructions ol {
+            color: #666;
+            font-size: 13px;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+        .alert {
+            margin: 12px 0;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .alert.success { background: #e9f7ef; color: #1e7e34; border: 1px solid #b7ebc6; }
+        .alert.error { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+        .footer {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer a:hover { text-decoration: underline; }
+        .expired {
+            color: #e53e3e;
+            font-size: 16px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Код подтверждения</h1>
+        <p class="subtitle">Покажите этот код на авторизованном устройстве</p>
+
+        <% if (message) { %>
+          <div class="alert success"><%= message %></div>
+        <% } %>
+
+        <% if (error) { %>
+          <div class="alert error"><%= error %></div>
+        <% } %>
+
+        <div class="code-display" id="codeDisplay"><%= confirmCode %></div>
+        
+        <div class="timer">
+            Код действителен: <span id="countdown"><%= expiresIn %></span> сек.
+        </div>
+
+        <div class="instructions">
+            <h3>Как использовать:</h3>
+            <ol>
+                <li>Откройте это приложение на устройстве, где вы уже авторизованы</li>
+                <li>Перейдите в раздел <strong>"Подтвердить вход"</strong></li>
+                <li>Введите код, показанный выше</li>
+                <li>После подтверждения эта страница автоматически обновится</li>
+            </ol>
+        </div>
+
+        <div class="footer">
+            <a href="/login">Назад к выбору входа</a>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var countdown = <%= expiresIn %>;
+            var countdownEl = document.getElementById('countdown');
+            var codeDisplay = document.getElementById('codeDisplay');
+            var loginToken = '<%= loginToken %>';
+            
+            var timer = setInterval(function() {
+                countdown--;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    countdownEl.textContent = '0';
+                    codeDisplay.innerHTML = '<span class="expired">Код истёк</span>';
+                    codeDisplay.style.fontSize = '24px';
+                    codeDisplay.style.letterSpacing = '0';
+                } else {
+                    countdownEl.textContent = countdown;
+                }
+            }, 1000);
+            
+            // Проверяем статус авторизации каждые 2 секунды
+            var checkStatus = setInterval(function() {
+                fetch('/auth/status?loginToken=' + encodeURIComponent(loginToken), { credentials: 'same-origin' })
+                    .then(function(res) { return res.json(); })
+                    .then(function(data) {
+                        if (data.status === 'authenticated') {
+                            clearInterval(checkStatus);
+                            clearInterval(timer);
+                            window.location.href = '/';
+                        }
+                    })
+                    .catch(function() {});
+            }, 2000);
+        })();
+    </script>
+</body>
+</html>

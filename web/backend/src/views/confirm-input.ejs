@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        .alert {
+            margin: 12px 0;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        .alert.success { background: #e9f7ef; color: #1e7e34; border: 1px solid #b7ebc6; }
+        .alert.error { background: #fdecea; color: #b71c1c; border: 1px solid #f5c6cb; }
+        form {
+            display: grid;
+            gap: 15px;
+        }
+        label {
+            font-size: 13px;
+            color: #444;
+            font-weight: 600;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 8px;
+            font-family: 'Courier New', monospace;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        input[type="text"]:focus {
+            border-color: #667eea;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.12);
+        }
+        .btn {
+            padding: 14px;
+            border: 0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+        .btn.primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn.primary:hover {
+            filter: brightness(0.95);
+            transform: translateY(-1px);
+        }
+        .instructions {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Подтвердить вход</h1>
+        <p class="subtitle">Введите код с другого устройства, чтобы разрешить вход</p>
+
+        <% if (message) { %>
+          <div class="alert success"><%= message %></div>
+        <% } %>
+
+        <% if (error) { %>
+          <div class="alert error"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/auth/confirm/verify">
+            <div>
+                <label for="code">Код подтверждения</label>
+                <input id="code" name="code" type="text" inputmode="numeric" placeholder="000000" maxlength="6" required autofocus />
+            </div>
+            
+            <button class="btn primary" type="submit">Подтвердить вход</button>
+        </form>
+
+        <div class="instructions">
+            <strong>Как это работает:</strong><br>
+            Кто-то пытается войти в систему с другого устройства. Если это вы — введите код, показанный на том устройстве. Если это не вы — просто проигнорируйте этот код.
+        </div>
+
+        <div class="footer">
+            <a href="/">Вернуться на главную</a>
+        </div>
+    </div>
+</body>
+</html>

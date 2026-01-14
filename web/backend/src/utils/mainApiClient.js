@@ -33,6 +33,74 @@ class MainApiClient {
   }
 
   /**
+   * Выполняет запрос с автоматическим refresh токена при 401
+   * По ТЗ: если main-module возвращает 401, пробуем refresh и повторяем запрос
+   * @param {object} options - { endpoint, method, data, sessionToken, sessionData, sessionManager, authApiClient, res }
+   * @returns {Promise<{data: any, newTokens?: {accessToken: string, refreshToken: string}}>}
+   */
+  async requestWithRefresh(options) {
+    const { endpoint, method = 'get', data = null, sessionToken, sessionData, sessionManager, authApiClient, res } = options;
+    
+    let accessToken = sessionData?.accessToken;
+    const refreshToken = sessionData?.refreshToken;
+    
+    try {
+      // Первая попытка
+      const result = await this.request(endpoint, method, data, accessToken);
+      return { data: result };
+    } catch (error) {
+      // Если 401 и есть refresh token - пробуем обновить
+      if (error.status === 401 && refreshToken && authApiClient && sessionManager && sessionToken) {
+        console.log('[MainApiClient] Получен 401, пробуем refresh токенов...');
+        
+        try {
+          const refreshResult = await authApiClient.refreshTokens(refreshToken);
+          
+          if (refreshResult && refreshResult.access_token && refreshResult.refresh_token) {
+            // Обновляем токены в Redis
+            await sessionManager.updateSession(sessionToken, {
+              accessToken: refreshResult.access_token,
+              refreshToken: refreshResult.refresh_token,
+              updatedAt: new Date().toISOString()
+            });
+            
+            console.log('[MainApiClient] Токены обновлены, повторяем запрос...');
+            
+            // Повторяем запрос с новым access token
+            const retryResult = await this.request(endpoint, method, data, refreshResult.access_token);
+            return { 
+              data: retryResult, 
+              newTokens: { 
+                accessToken: refreshResult.access_token, 
+                refreshToken: refreshResult.refresh_token 
+              } 
+            };
+          }
+        } catch (refreshError) {
+          console.error('[MainApiClient] Ошибка при refresh токенов:', refreshError.message || refreshError);
+          
+          // Refresh не удался - удаляем сессию и редиректим на главную
+          if (sessionManager && sessionToken) {
+            await sessionManager.deleteSession(sessionToken);
+          }
+          if (res) {
+            res.clearCookie('session_token');
+          }
+          
+          throw {
+            status: 401,
+            message: 'Session expired',
+            sessionExpired: true
+          };
+        }
+      }
+      
+      // Не 401 или нет refresh token - пробрасываем ошибку
+      throw error;
+    }
+  }
+
+  /**
    * Формирует заголовок авторизации
    * @param {string} accessToken - JWT access token
    * @returns {object} Заголовки с Authorization
