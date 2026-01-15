@@ -115,7 +115,7 @@
         <div class="page-header">
             <h1 class="page-title">Редактирование теста</h1>
             <div class="header-actions">
-                <a href="/test/<%= test.id %>" class="btn btn-outline">👁 Предпросмотр</a>
+<a href="/course/<%= test.course_id %>" class="btn btn-outline">← К курсу</a>
             </div>
         </div>
 
@@ -144,13 +144,23 @@
                 </div>
 
                 <div class="section">
-                    <div class="section-header"><h2 class="section-title">Добавить вопрос</h2></div>
-                    <div class="tabs">
-                        <button class="tab active" onclick="switchTab('existing')">Из банка</button>
-                        <button class="tab" onclick="switchTab('new')">Создать новый</button>
+                    <div class="section-header">
+                        <h2 class="section-title">Добавить вопрос</h2>
                     </div>
                     
-                    <div id="tab-existing" class="tab-content active">
+                    <div class="form-group">
+                        <label class="form-label">Быстрое создание вопроса</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" class="form-input" id="quickQuestionTitle" placeholder="Название вопроса..." onkeypress="if(event.key === 'Enter') createQuickQuestion()">
+                            <button class="btn btn-success" onclick="createQuickQuestion()">Создать</button>
+                        </div>
+                        <div class="hint">Введите название и нажмите Enter или кнопку "Создать"</div>
+                    </div>
+                    
+                    <div style="margin: 20px 0; text-align: center; color: #718096; font-size: 14px;">или</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Банк вопросов</label>
                         <input type="text" class="search-input" placeholder="Поиск вопросов..." oninput="filterQuestions(this.value)">
                         <div class="available-questions" id="availableQuestions">
                             <% if (availableQuestions && availableQuestions.length > 0) { %>
@@ -158,7 +168,7 @@
                                     <div class="available-question" data-title="<%= (q.title || q.text || '').toLowerCase() %>">
                                         <div class="aq-info">
                                             <div class="aq-title"><%= q.title || q.text %></div>
-                                            <div class="aq-meta">v<%= q.version || 1 %> • <%= q.options ? q.options.length : 0 %> вариантов</div>
+                                            <div class="aq-meta"><%= q.points || 1 %> балл • <%= q.options_count || (q.options ? q.options.length : 0) %> вариантов</div>
                                         </div>
                                         <button class="btn btn-success btn-sm" onclick="addQuestionToTest('<%= q.id %>')">+ Добавить</button>
                                     </div>
@@ -167,28 +177,6 @@
                                 <div class="empty-state"><p>Нет доступных вопросов</p></div>
                             <% } %>
                         </div>
-                    </div>
-                    
-                    <div id="tab-new" class="tab-content">
-                        <form id="newQuestionForm" onsubmit="createAndAddQuestion(event)">
-                            <div class="form-group">
-                                <label class="form-label">Название *</label>
-                                <input type="text" class="form-input" name="title" required placeholder="Краткое название">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Текст вопроса *</label>
-                                <textarea class="form-textarea" name="text" required placeholder="Полный текст..."></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Варианты (по одному на строку) *</label>
-                                <textarea class="form-textarea" name="options" required placeholder="Вариант 1&#10;Вариант 2&#10;Вариант 3"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Номер правильного ответа *</label>
-                                <input type="number" class="form-input" name="correct" min="1" required placeholder="1">
-                            </div>
-                            <button type="submit" class="btn btn-success" style="width:100%">Создать и добавить</button>
-                        </form>
                     </div>
                 </div>
             </div>
@@ -239,13 +227,6 @@
         let orderChanged = false;
         let draggedElement = null;
 
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('tab-' + tabName).classList.add('active');
-        }
-
         function filterQuestions(query) {
             const q = query.toLowerCase();
             document.querySelectorAll('.available-question').forEach(el => {
@@ -291,26 +272,60 @@
             } catch (err) { alert('Ошибка сети: ' + err.message); }
         }
 
+        async function createQuickQuestion() {
+            const titleInput = document.getElementById('quickQuestionTitle');
+            const title = titleInput.value.trim();
+            
+            if (!title) {
+                alert('Введите название вопроса');
+                titleInput.focus();
+                return;
+            }
+            
+            // Создаём вопрос с базовыми данными
+            const data = { 
+                text: title,
+                options: [
+                    { text: 'Вариант 1', is_correct: true },
+                    { text: 'Вариант 2', is_correct: false }
+                ]
+            };
+            
+            try {
+                const res = await fetch('/api/tests/' + testId + '/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (res.ok) {
+                    const result = await res.json();
+                    // Переходим на страницу редактора вопроса
+                    window.location.href = '/teacher/question/' + result.id + '?test=' + testId;
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось создать вопрос'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
         async function removeQuestion(questionId) {
             if (!confirm('Удалить вопрос из теста?')) return;
             try {
                 const res = await fetch('/api/tests/' + testId + '/questions/' + questionId, { method: 'DELETE' });
-                if (res.ok) location.reload();
-                else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось удалить')); }
-            } catch (err) { alert('Ошибка сети: ' + err.message); }
-        }
-
-        async function createAndAddQuestion(e) {
-            e.preventDefault();
-            const form = e.target;
-            const opts = form.options.value.trim().split('\n').filter(o => o.trim()).map((text, i) => ({ text: text.trim(), id: 'opt_' + i }));
-            const data = { title: form.title.value, text: form.text.value, options: opts, correct_option_index: parseInt(form.correct.value) - 1 };
-            try {
-                const res = await fetch('/api/questions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
                 if (res.ok) {
-                    const q = await res.json();
-                    await addQuestionToTest(q.id);
-                } else { const err = await res.json(); alert('Ошибка: ' + (err.error || '')); }
+                    // Immediately remove from UI
+                    const item = document.querySelector(`.question-item[data-id="${questionId}"]`);
+                    if (item) item.remove();
+                    updateQuestionNumbers();
+                    // Show empty state if no questions left
+                    const container = document.getElementById('questionsContainer');
+                    if (container.querySelectorAll('.question-item').length === 0) {
+                        container.innerHTML = '<div class="empty-state" id="emptyQuestions"><div class="empty-state-icon">📝</div><p>В тесте пока нет вопросов</p></div>';
+                    }
+                } else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось удалить')); }
             } catch (err) { alert('Ошибка сети: ' + err.message); }
         }
 

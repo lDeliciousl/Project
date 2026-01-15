@@ -40,7 +40,8 @@ async function apiRequest(req, endpoint, method = 'get', data = null) {
       sessionToken,
       sessionData,
       sessionManager,
-      authApiClient
+      authApiClient,
+      res: req.res // Добавляем res для обработки ошибок
     });
     return result?.data;
   } catch (err) {
@@ -59,14 +60,22 @@ router.get('/', requireTeacher, async (req, res) => {
     let myQuestions = [];
     let totalTests = 0;
     let totalStudents = 0;
+    const userId = user.id;
+    const userMainUuid = user.main_uuid;
     
     // Получаем все курсы и фильтруем по преподавателю
     try {
       const allCourses = await apiRequest(req, '/api/courses');
       if (Array.isArray(allCourses)) {
-        courses = allCourses.filter(c => c.teacher_id === user.id || c.instructor_id === user.id);
+        courses = allCourses.filter(c =>
+          (userMainUuid && c.teacher_id === userMainUuid) ||
+          (userId && c.teacher_external_id === userId)
+        );
       } else if (allCourses?.courses) {
-        courses = allCourses.courses.filter(c => c.teacher_id === user.id || c.instructor_id === user.id);
+        courses = allCourses.courses.filter(c =>
+          (userMainUuid && c.teacher_id === userMainUuid) ||
+          (userId && c.teacher_external_id === userId)
+        );
       }
       
       // Подсчитываем статистику
@@ -82,9 +91,9 @@ router.get('/', requireTeacher, async (req, res) => {
     try {
       const questions = await apiRequest(req, '/api/questions');
       if (Array.isArray(questions)) {
-        myQuestions = questions.filter(q => q.author_id === user.id);
+        myQuestions = questions;
       } else if (questions?.questions) {
-        myQuestions = questions.questions.filter(q => q.author_id === user.id);
+        myQuestions = questions.questions;
       }
     } catch (err) {
       console.warn('[Teacher] Не удалось загрузить вопросы:', err.message);
@@ -213,16 +222,17 @@ router.get('/test/:id', requireTeacher, async (req, res) => {
       }
     }
     
-    // Получаем доступные вопросы (банк вопросов преподавателя)
+    // Получаем доступные вопросы (банк вопросов - свободные вопросы без test_id)
     let availableQuestions = [];
     try {
       const questions = await apiRequest(req, '/api/questions');
       const allQuestions = questions?.questions || questions || [];
       
-      // Фильтруем вопросы, которые уже в тесте
+      // Фильтруем: показываем только свободные вопросы (без test_id) 
+      // или вопросы из других тестов, которые можно добавить
       const testQuestionIds = (test.questions || []).map(q => q.id);
       availableQuestions = allQuestions.filter(q => 
-        (q.author_id === user.id) && !testQuestionIds.includes(q.id)
+        !testQuestionIds.includes(q.id) && (!q.test_id || q.test_id === null)
       );
     } catch (err) {
       console.warn('[Teacher] Не удалось загрузить вопросы:', err.message);
@@ -249,17 +259,20 @@ router.get('/test/:id', requireTeacher, async (req, res) => {
 
 router.get('/question/new', requireTeacher, (req, res) => {
   const user = req.sessionData?.userData || {};
+  const testId = req.query.test || '';
   
   res.render('question-edit', {
     title: 'Создание вопроса',
     user,
-    question: {}
+    question: {},
+    testId
   });
 });
 
 router.get('/question/:id', requireTeacher, async (req, res) => {
   const questionId = req.params.id;
   const user = req.sessionData?.userData || {};
+  const testId = req.query.test || '';
   
   try {
     // Получаем информацию о вопросе
@@ -286,7 +299,8 @@ router.get('/question/:id', requireTeacher, async (req, res) => {
     res.render('question-edit', {
       title: `Редактирование: ${question.title || 'Вопрос'}`,
       user,
-      question
+      question,
+      testId
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки страницы вопроса:', error);
@@ -309,13 +323,14 @@ router.get('/questions', requireTeacher, async (req, res) => {
     try {
       const questions = await apiRequest(req, '/api/questions');
       const allQuestions = questions?.questions || questions || [];
-      myQuestions = allQuestions.filter(q => q.author_id === user.id);
+      // Show all questions (no author_id filtering since it doesn't exist)
+      myQuestions = allQuestions;
     } catch (err) {
       console.warn('[Teacher] Не удалось загрузить вопросы:', err.message);
     }
     
     res.render('questions-list', {
-      title: 'Мои вопросы',
+      title: 'Все вопросы',
       user,
       questions: myQuestions
     });
@@ -325,6 +340,151 @@ router.get('/questions', requireTeacher, async (req, res) => {
       title: 'Ошибка',
       statusCode: 500,
       message: 'Не удалось загрузить список вопросов.'
+    });
+  }
+});
+
+// Страница студентов курса
+router.get('/course/:id/students', requireTeacher, async (req, res) => {
+  const courseId = req.params.id;
+  
+  try {
+    // Получаем информацию о курсе
+    const course = await apiRequest(req, `/api/courses/${courseId}`);
+    
+    if (!course || !course.id) {
+      return res.status(404).render('error', {
+        title: 'Курс не найден',
+        statusCode: 404,
+        message: 'Запрошенный курс не существует.'
+      });
+    }
+    
+    // Получаем студентов курса
+    const students = await apiRequest(req, `/api/courses/${courseId}/students`);
+    
+    res.render('course-students', {
+      title: `Студенты курса - ${course.name}`,
+      course: course,
+      students: students || []
+    });
+  } catch (error) {
+    console.error(`[Teacher] Error loading students for course ${courseId}:`, error);
+    
+    if (error.status === 404) {
+      return res.status(404).render('error', {
+        title: 'Курс не найден',
+        statusCode: 404,
+        message: 'Запрошенный курс не существует.'
+      });
+    }
+    
+    if (error.status === 403) {
+      return res.status(403).render('error', {
+        title: 'Доступ запрещён',
+        statusCode: 403,
+        message: 'У вас нет доступа к этому курсу.'
+      });
+    }
+    
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить список студентов.'
+    });
+  }
+});
+
+// Страница результатов студента
+router.get('/student/:studentId/results', requireTeacher, async (req, res) => {
+  const studentId = req.params.studentId;
+  
+  try {
+    // Получаем информацию о студенте
+    const student = await apiRequest(req, `/api/db/users/${studentId}`);
+    
+    if (!student || !student.id) {
+      return res.status(404).render('error', {
+        title: 'Студент не найден',
+        statusCode: 404,
+        message: 'Запрошенный студент не существует.'
+      });
+    }
+    
+    // Получаем тесты студента
+    const testsResponse = await apiRequest(req, `/api/db/users/${studentId}/tests`);
+    const allTests = testsResponse?.tests || [];
+    
+    // Если есть courseId в query, фильтруем тесты курса
+    const courseId = req.query.course;
+    let testResults = allTests;
+    if (courseId) {
+      testResults = allTests.filter(test => test.course_id === courseId);
+    }
+    
+    // Получаем информацию о курсе если нужно
+    let course = null;
+    if (courseId) {
+      course = await apiRequest(req, `/api/courses/${courseId}`);
+    }
+    
+    res.render('student-results', {
+      title: `Результаты студента - ${student.name || student.email}`,
+      student: student,
+      course: course,
+      testResults: testResults
+    });
+  } catch (error) {
+    console.error(`[Teacher] Error loading student results ${studentId}:`, error);
+    
+    if (error.status === 404) {
+      return res.status(404).render('error', {
+        title: 'Студент не найден',
+        statusCode: 404,
+        message: 'Запрошенный студент не существует.'
+      });
+    }
+    
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить результаты студента.'
+    });
+  }
+});
+
+// Страница всех студентов
+router.get('/students', requireTeacher, async (req, res) => {
+  try {
+    // Получаем всех студентов напрямую из базы через main модуль
+    const response = await apiRequest(req, '/api/db/users');
+    console.log('[Teacher] Users response:', response);
+    
+    // Проверяем, что response - это массив
+    const students = Array.isArray(response) ? response : (response && response.users ? response.users : []);
+    console.log('[Teacher] Students array:', students);
+    
+    // Фильтруем только студентов (не преподавателей и не админов)
+    const allStudents = students.filter(user => {
+      const roles = user.roles || '[]';
+      return roles.includes('student') || roles.includes('Студент') || roles.includes('user');
+    });
+    
+    const totalStudents = allStudents.length;
+    
+    res.render('students-list', {
+      title: 'Студенты - Система тестирования',
+      students: allStudents,
+      totalStudents: totalStudents,
+      totalCourses: 0,
+      activeStudents: totalStudents
+    });
+  } catch (error) {
+    console.error('[Teacher] Error loading students list:', error);
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить список студентов.'
     });
   }
 });

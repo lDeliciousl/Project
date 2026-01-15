@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой профиль - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; min-height: 80px; }
+        .logo { font-size: 24px; font-weight: bold; color: #667eea; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+        .logo-icon { font-size: 28px; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; transition: all 0.3s; }
+        .nav-btn-secondary { background: #e2e8f0; color: #4a5568; }
+        .nav-btn-secondary:hover { background: #cbd5e0; }
+        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; }
+        .logout-btn:hover { background: #ff3742; }
+        .container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        .page-title { font-size: 28px; color: #333; margin-bottom: 30px; }
+        .section { background: white; border-radius: 10px; padding: 25px; margin-bottom: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+        .section-title { font-size: 18px; color: #333; }
+        .info-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #e2e8f0; }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { font-weight: 500; color: #4a5568; }
+        .info-value { color: #333; }
+        .avatar-large { width: 80px; height: 80px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; }
+        .profile-header { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
+        .profile-name { font-size: 24px; font-weight: 600; }
+        .profile-email { color: #718096; }
+        .role-badge { display: inline-block; padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; margin-right: 5px; }
+        .role-admin { background: #fed7d7; color: #c53030; }
+        .role-teacher { background: #c6f6d5; color: #22543d; }
+        .role-student { background: #bee3f8; color: #2a4365; }
+        .role-user { background: #e2e8f0; color: #4a5568; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; transition: all 0.3s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-success:hover { background: #38a169; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-info { background: #bee3f8; color: #2a4365; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
+        .form-select { width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .form-select:focus { outline: none; border-color: #667eea; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 8px 15px; background: #f8fafc; border-radius: 8px; border: 2px solid #e2e8f0; cursor: pointer; transition: all 0.3s; }
+        .checkbox-item:hover { border-color: #667eea; }
+        .checkbox-item.checked { border-color: #48bb78; background: #f0fff4; }
+        .checkbox-item input { width: 18px; height: 18px; accent-color: #48bb78; }
+        .admin-section { border: 2px solid #fed7d7; background: #fff5f5; }
+        .admin-section .section-title { color: #c53030; }
+        @media (max-width: 768px) { .header { padding: 15px 20px; } .info-row { flex-direction: column; align-items: flex-start; gap: 5px; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo"><span class="logo-icon">📚</span><span>Система тестирования</span></a>
+        <div class="nav-links">
+            <a href="/" class="nav-btn nav-btn-secondary">← На главную</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="page-title">Мой профиль</h1>
+
+        <% if (typeof message !== 'undefined' && message) { %><div class="alert alert-success"><%= message %></div><% } %>
+        <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+        <div class="section">
+            <div class="profile-header">
+                <div class="avatar-large"><%= user.name ? user.name.charAt(0).toUpperCase() : '?' %></div>
+                <div>
+                    <div class="profile-name"><%= user.name || 'Пользователь' %></div>
+                    <div class="profile-email"><%= user.email || '' %></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header"><h2 class="section-title">Информация об аккаунте</h2></div>
+            <div class="info-row">
+                <span class="info-label">ID пользователя</span>
+                <span class="info-value" style="font-family: monospace; font-size: 12px;"><%= user.id %></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Email</span>
+                <span class="info-value"><%= user.email %></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Имя</span>
+                <span class="info-value"><%= user.name %></span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Роли</span>
+                <span class="info-value">
+                    <% if (user.roles && user.roles.length > 0) { %>
+                        <% user.roles.forEach(role => { %>
+                            <% 
+                                let roleClass = 'role-user';
+                                if (role === 'admin' || role === 'Админ') roleClass = 'role-admin';
+                                else if (role === 'teacher' || role === 'Преподаватель') roleClass = 'role-teacher';
+                                else if (role === 'Студент' || role === 'student') roleClass = 'role-student';
+                            %>
+                            <span class="role-badge <%= roleClass %>"><%= role %></span>
+                        <% }); %>
+                    <% } else { %>
+                        <span class="role-badge role-user">user</span>
+                    <% } %>
+                </span>
+            </div>
+        </div>
+
+        <% if (isAdmin) { %>
+        <div class="section admin-section">
+            <div class="section-header"><h2 class="section-title">⚙️ Управление ролями (Админ)</h2></div>
+            <div class="alert alert-info">Вы можете изменить свои роли, так как у вас есть права администратора.</div>
+            
+            <form id="rolesForm" onsubmit="updateRoles(event)">
+                <div class="form-group">
+                    <label class="form-label">Выберите роли:</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item <%= user.roles && user.roles.includes('Студент') ? 'checked' : '' %>">
+                            <input type="checkbox" name="roles" value="Студент" <%= user.roles && user.roles.includes('Студент') ? 'checked' : '' %> onchange="this.parentElement.classList.toggle('checked')">
+                            Студент
+                        </label>
+                        <label class="checkbox-item <%= user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель')) ? 'checked' : '' %>">
+                            <input type="checkbox" name="roles" value="Преподаватель" <%= user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель')) ? 'checked' : '' %> onchange="this.parentElement.classList.toggle('checked')">
+                            Преподаватель
+                        </label>
+                        <label class="checkbox-item <%= user.roles && (user.roles.includes('admin') || user.roles.includes('Админ')) ? 'checked' : '' %>">
+                            <input type="checkbox" name="roles" value="Админ" <%= user.roles && (user.roles.includes('admin') || user.roles.includes('Админ')) ? 'checked' : '' %> onchange="this.parentElement.classList.toggle('checked')">
+                            Админ
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success">💾 Сохранить роли</button>
+            </form>
+        </div>
+        <% } else { %>
+        <div class="section">
+            <div class="section-header"><h2 class="section-title">ℹ️ Изменение ролей</h2></div>
+            <p style="color: #718096;">Для изменения ролей обратитесь к администратору системы.</p>
+        </div>
+        <% } %>
+    </div>
+
+    <script>
+        const userId = '<%= user.id %>';
+
+        async function updateRoles(e) {
+            e.preventDefault();
+            const checkboxes = document.querySelectorAll('input[name="roles"]:checked');
+            const roles = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (roles.length === 0) {
+                alert('Выберите хотя бы одну роль');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/users/' + userId + '/roles', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ roles })
+                });
+
+                if (res.ok) {
+                    alert('Роли успешно обновлены! Перезайдите в систему для применения изменений.');
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось обновить роли'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

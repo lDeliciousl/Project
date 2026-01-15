@@ -389,6 +389,23 @@ router.get('/test/:id', async (req, res) => {
   }
 });
 
+// Страница профиля
+router.get('/profile', async (req, res) => {
+  if (req.userStatus !== 'authenticated') {
+    return res.redirect('/');
+  }
+
+  const user = req.sessionData?.userData || {};
+  const roles = user.roles || [];
+  const isAdmin = roles.includes('admin') || roles.includes('Админ');
+
+  res.render('profile', {
+    title: 'Мой профиль',
+    user,
+    isAdmin
+  });
+});
+
 // Страница 404
 router.get('/404', (req, res) => {
   res.status(404).render('404', {

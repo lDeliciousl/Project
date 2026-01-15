@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Студенты курса - <%= course.name %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: 600; }
+        .students-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .student-card { background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e2e8f0; }
+        .student-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .student-avatar { width: 50px; height: 50px; border-radius: 50%; background: #667eea; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; }
+        .student-info h3 { font-size: 16px; margin-bottom: 5px; }
+        .student-info p { font-size: 14px; color: #718096; }
+        .student-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; }
+        .stat-item { text-align: center; padding: 10px; background: white; border-radius: 6px; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #667eea; }
+        .stat-label { font-size: 12px; color: #718096; }
+        .student-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .search-box { margin-bottom: 20px; }
+        .search-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .search-input:focus { outline: none; border-color: #667eea; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <a href="/teacher/course/<%= course.id %>" class="nav-btn">← К курсу</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / 
+            <a href="/teacher/course/<%= course.id %>"><%= course.name %></a> / Студенты
+        </div>
+
+        <h1 class="page-title">Студенты курса</h1>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <div class="card">
+            <div class="section-header">
+                <h2 class="section-title">Список студентов (<%= students.length %>)</h2>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="Поиск по имени или email..." oninput="filterStudents(this.value)">
+            </div>
+
+            <div class="students-grid" id="studentsGrid">
+                <% if (students && students.length > 0) { %>
+                    <% students.forEach(student => { %>
+                        <div class="student-card" data-name="<%= (student.name || '').toLowerCase() %>" data-email="<%= (student.email || '').toLowerCase() %>">
+                            <div class="student-header">
+                                <div class="student-avatar">
+                                    <%= (student.name || student.email || 'S').charAt(0).toUpperCase() %>
+                                </div>
+                                <div class="student-info">
+                                    <h3><%= student.name || student.email || 'Студент' %></h3>
+                                    <p><%= student.email || 'Нет email' %></p>
+                                </div>
+                            </div>
+                            
+                            <div class="student-stats">
+                                <div class="stat-item">
+                                    <div class="stat-value" id="tests-<%= student.id %>0</div>
+                                    <div class="stat-label">Тестов</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="avg-<%= student.id %>0</div>
+                                    <div class="stat-label">Средний балл</div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-value" id="last-<%= student.id %>—</div>
+                                    <div class="stat-label">Последний тест</div>
+                                </div>
+                            </div>
+                            
+                            <div class="student-actions">
+                                <a href="/teacher/student/<%= student.id %>/results" class="btn btn-outline btn-sm">📊 Результаты</a>
+                                <button class="btn btn-danger btn-sm" onclick="unenrollStudent('<%= student.id %>')">❌ Отчислить</button>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <h3>На курсе пока нет студентов</h3>
+                        <p>Студенты смогут записаться на курс через личный кабинет</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Данные студентов переданные с сервера
+        const studentsData = <%- JSON.stringify(students || []) %>;
+        
+        function filterStudents(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.student-card').forEach(card => {
+                const name = card.getAttribute('data-name') || '';
+                const email = card.getAttribute('data-email') || '';
+                const matches = name.includes(q) || email.includes(q);
+                card.style.display = matches ? 'block' : 'none';
+            });
+        }
+
+        async function unenrollStudent(studentId) {
+            if (!confirm('Отчислить студента с курса?')) return;
+            
+            try {
+                const res = await fetch(`/api/courses/<%= course.id %>/enroll/${studentId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (res.ok) {
+                    // Удаляем карточку студента
+                    const card = document.querySelector(`.student-card[data-email*="${studentId}"]`);
+                    if (card) card.remove();
+                    
+                    // Обновляем счётчик
+                    const grid = document.getElementById('studentsGrid');
+                    const remaining = grid.querySelectorAll('.student-card').length;
+                    document.querySelector('.section-title').textContent = `Список студентов (${remaining})`;
+                    
+                    // Показываем пустое состояние если нужно
+                    if (remaining === 0) {
+                        grid.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">👥</div>
+                                <h3>На курсе пока нет студентов</h3>
+                                <p>Студенты смогут записаться на курс через личный кабинет</p>
+                            </div>
+                        `;
+                    }
+                    
+                    alert('Студент отчислен с курса');
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось отчислить студента'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        // Загружаем статистику студентов при загрузке страницы
+        document.addEventListener('DOMContentLoaded', async () => {
+            const studentIds = studentsData.map(s => s.id);
+            
+            for (const studentId of studentIds) {
+                try {
+                    const res = await fetch(`/api/courses/<%= course.id %>/student/${studentId}/stats`);
+                    if (res.ok) {
+                        const stats = await res.json();
+                        
+                        // Обновляем количество тестов
+                        const testsEl = document.getElementById(`tests-${studentId}`);
+                        if (testsEl) testsEl.textContent = stats.tests_count || 0;
+                        
+                        // Обновляем средний балл
+                        const avgEl = document.getElementById(`avg-${studentId}`);
+                        if (avgEl) avgEl.textContent = stats.average_score ? stats.average_score.toFixed(1) : '0';
+                        
+                        // Обновляем дату последнего теста
+                        const lastEl = document.getElementById(`last-${studentId}`);
+                        if (lastEl && stats.last_test_date) {
+                            const date = new Date(stats.last_test_date);
+                            lastEl.textContent = date.toLocaleDateString('ru-RU');
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`Не удалось загрузить статистику студента ${studentId}:`, err);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

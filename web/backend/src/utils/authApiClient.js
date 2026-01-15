@@ -174,6 +174,27 @@ class AuthApiClient {
     });
   }
 
+  // ========== Управление пользователями ==========
+
+  /**
+   * Получает информацию о пользователе по ID
+   * @param {string} userId - ID пользователя
+   * @returns {Promise<object>} Данные пользователя
+   */
+  async getUserInfo(userId) {
+    return this.request(`/api/auth/users/${userId}`, 'get');
+  }
+
+  /**
+   * Обновляет роли пользователя
+   * @param {string} userId - ID пользователя
+   * @param {string[]} roles - Новые роли
+   * @returns {Promise<object>} Результат операции
+   */
+  async updateUserRoles(userId, roles) {
+    return this.request(`/api/auth/users/${userId}/roles`, 'put', { roles });
+  }
+
   // ========== Служебные методы ==========
 
   /**

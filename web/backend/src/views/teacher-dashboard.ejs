@@ -150,6 +150,14 @@
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+        }
+        .stat-card-clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            background: #f8f9ff;
         }
         .stat-value {
             font-size: 36px;
@@ -414,10 +422,10 @@
                 <div class="stat-value"><%= totalTests || 0 %></div>
                 <div class="stat-label">Тестов</div>
             </div>
-            <div class="stat-card">
+            <a href="/teacher/students" class="stat-card stat-card-clickable">
                 <div class="stat-value"><%= totalStudents || 0 %></div>
                 <div class="stat-label">Студентов</div>
-            </div>
+            </a>
             <div class="stat-card">
                 <div class="stat-value"><%= myQuestions ? myQuestions.length : 0 %></div>
                 <div class="stat-label">Моих вопросов</div>
@@ -465,9 +473,9 @@
         <div class="section questions-section">
             <div class="section-header">
                 <h2 class="section-title">Мои вопросы</h2>
-                <button class="btn btn-success btn-sm" onclick="openCreateQuestionModal()">
+                <a href="/teacher/question/new" class="btn btn-success btn-sm">
                     <span>+</span> Создать вопрос
-                </button>
+                </a>
             </div>
 
             <% if (myQuestions && myQuestions.length > 0) { %>
@@ -477,8 +485,8 @@
                             <div class="question-info">
                                 <div class="question-title"><%= question.title || question.text %></div>
                                 <div class="question-meta">
-                                    Версия: <%= question.version || 1 %> • 
-                                    Ответов: <%= question.options ? question.options.length : 0 %>
+                                    <%= question.points || 1 %> балл • 
+                                    <%= question.options_count || (question.options ? question.options.length : 0) %> вариантов
                                 </div>
                             </div>
                             <div class="course-actions">
@@ -525,45 +533,10 @@
         </div>
     </div>
 
-    <!-- Modal: Create Question -->
-    <div class="modal-overlay" id="createQuestionModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3 class="modal-title">Создать вопрос</h3>
-                <button class="modal-close" onclick="closeModal('createQuestionModal')">&times;</button>
-            </div>
-            <form id="createQuestionForm" onsubmit="createQuestion(event)">
-                <div class="form-group">
-                    <label class="form-label">Название вопроса *</label>
-                    <input type="text" class="form-input" name="title" required placeholder="Краткое название">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Текст вопроса *</label>
-                    <textarea class="form-textarea" name="text" required placeholder="Полный текст вопроса..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Варианты ответов (по одному на строку) *</label>
-                    <textarea class="form-textarea" name="options" required placeholder="Вариант 1&#10;Вариант 2&#10;Вариант 3&#10;Вариант 4"></textarea>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Номер правильного ответа (начиная с 1) *</label>
-                    <input type="number" class="form-input" name="correct_answer" required min="1" placeholder="1">
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-outline" onclick="closeModal('createQuestionModal')">Отмена</button>
-                    <button type="submit" class="btn btn-success">Создать вопрос</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
+    
     <script>
         function openCreateCourseModal() {
             document.getElementById('createCourseModal').classList.add('active');
-        }
-
-        function openCreateQuestionModal() {
-            document.getElementById('createQuestionModal').classList.add('active');
         }
 
         function closeModal(modalId) {
@@ -606,42 +579,6 @@
             }
         }
 
-        async function createQuestion(e) {
-            e.preventDefault();
-            const form = e.target;
-            const optionsText = form.options.value.trim();
-            const optionsArray = optionsText.split('\n').filter(o => o.trim()).map((text, index) => ({
-                text: text.trim(),
-                id: 'opt_' + index
-            }));
-            
-            const correctIndex = parseInt(form.correct_answer.value) - 1;
-
-            const data = {
-                title: form.title.value,
-                text: form.text.value,
-                options: optionsArray,
-                correct_option_index: correctIndex
-            };
-
-            try {
-                const response = await fetch('/api/questions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    window.location.reload();
-                } else {
-                    const error = await response.json();
-                    alert('Ошибка: ' + (error.error || 'Не удалось создать вопрос'));
-                }
-            } catch (err) {
-                alert('Ошибка сети: ' + err.message);
-            }
-        }
-    </script>
+            </script>
 </body>
 </html>

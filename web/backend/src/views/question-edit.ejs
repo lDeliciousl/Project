@@ -3,26 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Редактор вопроса - Система тестирования</title>
+    <title><%= question.id ? 'Редактирование' : 'Создание' %> вопроса</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
-        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 40px; display: flex; justify-content: space-between; align-items: center; min-height: 80px; }
-        .logo { font-size: 24px; font-weight: bold; color: #667eea; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-        .logo-icon { font-size: 28px; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
         .nav-links { display: flex; gap: 10px; }
-        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; transition: all 0.3s; }
-        .nav-btn-secondary { background: #e2e8f0; color: #4a5568; }
-        .nav-btn-secondary:hover { background: #cbd5e0; }
-        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; text-decoration: none; }
-        .logout-btn:hover { background: #ff3742; }
-        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
-        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
-        .breadcrumb a { color: #667eea; text-decoration: none; }
-        .breadcrumb a:hover { text-decoration: underline; }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .page-title { font-size: 28px; color: #333; }
-        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; transition: all 0.3s; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
+        .form-input, .form-textarea { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: #667eea; }
+        .form-textarea { resize: vertical; min-height: 80px; }
+        .options-list { display: flex; flex-direction: column; gap: 10px; }
+        .option-row { display: flex; gap: 10px; align-items: center; }
+        .option-radio { width: 20px; height: 20px; accent-color: #48bb78; cursor: pointer; }
+        .option-input { flex: 1; }
+        .option-remove { background: #fed7d7; color: #c53030; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        .option-remove:hover { background: #fc8181; color: white; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
         .btn-primary { background: #667eea; color: white; }
         .btn-primary:hover { background: #5a67d8; }
         .btn-success { background: #48bb78; color: white; }
@@ -32,182 +36,80 @@
         .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
         .btn-outline:hover { background: #667eea; color: white; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-        .section { background: white; border-radius: 10px; padding: 25px; margin-bottom: 30px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
-        .section-title { font-size: 18px; color: #333; }
-        .form-group { margin-bottom: 20px; }
-        .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
-        .form-input, .form-textarea { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s; }
-        .form-input:focus, .form-textarea:focus { outline: none; border-color: #667eea; }
-        .form-textarea { resize: vertical; min-height: 100px; }
-        .form-hint { font-size: 12px; color: #718096; margin-top: 5px; }
-        .options-list { display: flex; flex-direction: column; gap: 10px; }
-        .option-row { display: flex; gap: 10px; align-items: center; }
-        .option-input { flex: 1; }
-        .option-radio { width: 20px; height: 20px; accent-color: #48bb78; }
-        .option-remove { background: #fed7d7; color: #c53030; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; }
-        .option-remove:hover { background: #fc8181; color: white; }
-        .add-option-btn { margin-top: 10px; }
-        .preview-card { background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px; padding: 25px; }
-        .preview-question { font-size: 18px; font-weight: 500; margin-bottom: 20px; line-height: 1.5; }
-        .preview-options { display: flex; flex-direction: column; gap: 10px; }
-        .preview-option { display: flex; align-items: center; padding: 15px; background: white; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all 0.3s; }
-        .preview-option:hover { border-color: #667eea; background: #f0f3ff; }
-        .preview-option.correct { border-color: #48bb78; background: #f0fff4; }
-        .preview-option input { margin-right: 15px; width: 18px; height: 18px; accent-color: #667eea; }
-        .preview-option label { cursor: pointer; flex: 1; }
-        .preview-option .correct-badge { background: #48bb78; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: 10px; }
-        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; }
-        .alert-success { background: #c6f6d5; color: #22543d; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; }
+        .hint { font-size: 12px; color: #718096; margin-top: 5px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
         .alert-error { background: #fed7d7; color: #742a2a; }
-        .alert-info { background: #bee3f8; color: #2a4365; }
-        .version-info { background: #e2e8f0; padding: 10px 15px; border-radius: 8px; font-size: 13px; color: #4a5568; margin-bottom: 20px; }
-        .version-badge { background: #667eea; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-        .danger-zone { border: 2px solid #fed7d7; background: #fff5f5; }
-        .danger-zone .section-title { color: #c53030; }
-        @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-        @media (max-width: 768px) { .header { padding: 15px 20px; } .page-header { flex-direction: column; gap: 15px; align-items: flex-start; } }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .test-link { background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; }
+        .test-link a { color: #667eea; text-decoration: none; }
     </style>
 </head>
 <body>
     <div class="header">
-        <a href="/" class="logo"><span class="logo-icon">📚</span><span>Система тестирования</span></a>
+        <a href="/" class="logo">📚 Система тестирования</a>
         <div class="nav-links">
-            <a href="/teacher" class="nav-btn nav-btn-secondary">← Панель преподавателя</a>
-            <a href="/logout" class="logout-btn">Выйти</a>
+            <% if (typeof testId !== 'undefined' && testId) { %>
+                <a href="/teacher/test/<%= testId %>" class="nav-btn">← К тесту</a>
+            <% } else { %>
+                <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <% } %>
         </div>
     </div>
 
     <div class="container">
-        <div class="breadcrumb">
-            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / Редактор вопроса
-        </div>
+        <h1 class="page-title"><%= question.id ? 'Редактирование вопроса' : 'Создание вопроса' %></h1>
 
-        <% if (typeof message !== 'undefined' && message) { %><div class="alert alert-success"><%= message %></div><% } %>
-        <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
-
-        <div class="page-header">
-            <h1 class="page-title"><%= question.id ? 'Редактирование вопроса' : 'Создание вопроса' %></h1>
-        </div>
-
-        <% if (question.id) { %>
-        <div class="version-info">
-            <span class="version-badge">Версия <%= question.version || 1 %></span>
-            При сохранении изменений будет создана новая версия вопроса (версионирование).
-        </div>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
         <% } %>
 
-        <div class="grid-2">
-            <div>
-                <div class="section">
-                    <div class="section-header"><h2 class="section-title">Редактор</h2></div>
-                    <form id="questionForm" onsubmit="saveQuestion(event)">
-                        <div class="form-group">
-                            <label class="form-label">Название вопроса *</label>
-                            <input type="text" class="form-input" name="title" id="titleInput" value="<%= question.title || '' %>" required placeholder="Краткое название для идентификации" oninput="updatePreview()">
-                            <div class="form-hint">Отображается в списке вопросов</div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Текст вопроса *</label>
-                            <textarea class="form-textarea" name="text" id="textInput" required placeholder="Полный текст вопроса, который увидит студент..." oninput="updatePreview()"><%= question.text || '' %></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Варианты ответов *</label>
-                            <div class="options-list" id="optionsList">
-                                <% if (question.options && question.options.length > 0) { %>
-                                    <% question.options.forEach((opt, idx) => { %>
-                                        <div class="option-row">
-                                            <input type="radio" name="correct" class="option-radio" value="<%= idx %>" <%= question.correct_option_index === idx ? 'checked' : '' %> onchange="updatePreview()">
-                                            <input type="text" class="form-input option-input" value="<%= opt.text %>" placeholder="Вариант ответа" oninput="updatePreview()">
-                                            <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
-                                        </div>
-                                    <% }); %>
-                                <% } else { %>
-                                    <div class="option-row">
-                                        <input type="radio" name="correct" class="option-radio" value="0" checked onchange="updatePreview()">
-                                        <input type="text" class="form-input option-input" placeholder="Вариант ответа" oninput="updatePreview()">
-                                        <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
-                                    </div>
-                                    <div class="option-row">
-                                        <input type="radio" name="correct" class="option-radio" value="1" onchange="updatePreview()">
-                                        <input type="text" class="form-input option-input" placeholder="Вариант ответа" oninput="updatePreview()">
-                                        <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
-                                    </div>
-                                <% } %>
+        <% if (typeof testId !== 'undefined' && testId) { %>
+            <div class="test-link">📝 Вопрос будет добавлен в тест</div>
+        <% } %>
+
+        <div class="card">
+            <form id="questionForm">
+                <div class="form-group">
+                    <label class="form-label">Название вопроса *</label>
+                    <input type="text" class="form-input" name="title" id="titleInput" value="<%= question.title || '' %>" required placeholder="Краткое название для идентификации">
+                    <div class="hint">Отображается в списках вопросов</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Текст вопроса *</label>
+                    <textarea class="form-textarea" name="text" id="textInput" required placeholder="Введите текст вопроса..."><%= question.text || '' %></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Варианты ответов *</label>
+                    <div class="options-list" id="optionsList">
+                        <% const opts = (question.options && question.options.length > 0) ? question.options : [{text:''},{text:''}]; %>
+                        <% opts.forEach((opt, idx) => { %>
+                            <div class="option-row">
+                                <input type="radio" name="correct" class="option-radio" value="<%= idx %>" <%= opt.is_correct ? 'checked' : (idx === 0 && !opts.some(o => o.is_correct) ? 'checked' : '') %> title="Правильный ответ">
+                                <input type="text" class="form-input option-input" value="<%= opt.text || '' %>" placeholder="Вариант ответа">
+                                <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
                             </div>
-                            <button type="button" class="btn btn-outline btn-sm add-option-btn" onclick="addOption()">+ Добавить вариант</button>
-                            <div class="form-hint" style="margin-top: 10px;">Выберите правильный ответ с помощью переключателя слева</div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 10px;">
-                            <button type="submit" class="btn btn-success" style="flex: 1;"><%= question.id ? '💾 Сохранить (новая версия)' : '✓ Создать вопрос' %></button>
-                        </div>
-                    </form>
-                </div>
-
-                <% if (question.id) { %>
-                <div class="section danger-zone">
-                    <div class="section-header"><h2 class="section-title">⚠️ Опасная зона</h2></div>
-                    <p style="margin-bottom: 15px; color: #718096;">Удаление вопроса возможно только если он не используется в тестах.</p>
-                    <button class="btn btn-danger" onclick="deleteQuestion()">Удалить вопрос</button>
-                </div>
-                <% } %>
-            </div>
-
-            <div>
-                <div class="section">
-                    <div class="section-header"><h2 class="section-title">Предпросмотр</h2></div>
-                    <div class="preview-card">
-                        <div class="preview-question" id="previewQuestion">
-                            <%= question.text || 'Текст вопроса появится здесь...' %>
-                        </div>
-                        <div class="preview-options" id="previewOptions">
-                            <% if (question.options && question.options.length > 0) { %>
-                                <% question.options.forEach((opt, idx) => { %>
-                                    <div class="preview-option <%= question.correct_option_index === idx ? 'correct' : '' %>">
-                                        <input type="radio" name="preview" id="prev_<%= idx %>">
-                                        <label for="prev_<%= idx %>"><%= opt.text %></label>
-                                        <% if (question.correct_option_index === idx) { %><span class="correct-badge">Правильный</span><% } %>
-                                    </div>
-                                <% }); %>
-                            <% } else { %>
-                                <div class="preview-option">
-                                    <input type="radio" name="preview">
-                                    <label>Вариант ответа 1</label>
-                                </div>
-                                <div class="preview-option">
-                                    <input type="radio" name="preview">
-                                    <label>Вариант ответа 2</label>
-                                </div>
-                            <% } %>
-                        </div>
-                    </div>
-                    <div class="alert alert-info" style="margin-top: 20px;">
-                        💡 Так вопрос будет выглядеть для студента во время прохождения теста
-                    </div>
-                </div>
-
-                <% if (question.id && question.used_in_tests && question.used_in_tests.length > 0) { %>
-                <div class="section">
-                    <div class="section-header"><h2 class="section-title">Используется в тестах</h2></div>
-                    <ul style="list-style: none;">
-                        <% question.used_in_tests.forEach(test => { %>
-                            <li style="padding: 10px; background: #f8fafc; border-radius: 6px; margin-bottom: 8px;">
-                                <a href="/teacher/test/<%= test.id %>" style="color: #667eea; text-decoration: none; font-weight: 500;"><%= test.name %></a>
-                            </li>
                         <% }); %>
-                    </ul>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" style="margin-top: 10px;" onclick="addOption()">+ Добавить вариант</button>
+                    <div class="hint">Выберите правильный ответ кружком слева</div>
                 </div>
-                <% } %>
-            </div>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-success"><%= question.id ? '💾 Сохранить' : '✓ Создать' %></button>
+                    <% if (question.id) { %>
+                        <button type="button" class="btn btn-danger" onclick="deleteQuestion()">Удалить</button>
+                    <% } %>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
         const questionId = '<%= question.id || "" %>';
+        const testId = '<%= typeof testId !== "undefined" ? testId : "" %>';
         
         function addOption() {
             const list = document.getElementById('optionsList');
@@ -215,13 +117,12 @@
             const row = document.createElement('div');
             row.className = 'option-row';
             row.innerHTML = `
-                <input type="radio" name="correct" class="option-radio" value="${count}" onchange="updatePreview()">
-                <input type="text" class="form-input option-input" placeholder="Вариант ответа" oninput="updatePreview()">
+                <input type="radio" name="correct" class="option-radio" value="${count}" title="Правильный ответ">
+                <input type="text" class="form-input option-input" placeholder="Вариант ответа">
                 <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
             `;
             list.appendChild(row);
             updateRadioValues();
-            updatePreview();
         }
         
         function removeOption(btn) {
@@ -229,7 +130,6 @@
             if (list.querySelectorAll('.option-row').length > 2) {
                 btn.closest('.option-row').remove();
                 updateRadioValues();
-                updatePreview();
             } else {
                 alert('Минимум 2 варианта ответа');
             }
@@ -242,40 +142,32 @@
             });
         }
         
-        function updatePreview() {
-            const text = document.getElementById('textInput').value || 'Текст вопроса появится здесь...';
-            document.getElementById('previewQuestion').textContent = text;
-            
-            const optionsContainer = document.getElementById('previewOptions');
-            const optionRows = document.querySelectorAll('.option-row');
-            const correctIdx = document.querySelector('input[name="correct"]:checked')?.value || 0;
-            
-            let html = '';
-            optionRows.forEach((row, idx) => {
-                const optText = row.querySelector('.option-input').value || `Вариант ${idx + 1}`;
-                const isCorrect = parseInt(correctIdx) === idx;
-                html += `
-                    <div class="preview-option ${isCorrect ? 'correct' : ''}">
-                        <input type="radio" name="preview" id="prev_${idx}">
-                        <label for="prev_${idx}">${optText}</label>
-                        ${isCorrect ? '<span class="correct-badge">Правильный</span>' : ''}
-                    </div>
-                `;
-            });
-            optionsContainer.innerHTML = html;
-        }
-        
-        async function saveQuestion(e) {
+        document.getElementById('questionForm').onsubmit = async function(e) {
             e.preventDefault();
-            const form = e.target;
-            const title = form.title.value;
-            const text = form.text.value;
-            const correctIdx = parseInt(document.querySelector('input[name="correct"]:checked').value);
+            
+            const title = document.getElementById('titleInput').value.trim();
+            const text = document.getElementById('textInput').value.trim();
+            
+            if (!title) {
+                alert('Введите название вопроса');
+                document.getElementById('titleInput').focus();
+                return;
+            }
+            
+            if (!text) {
+                alert('Введите текст вопроса');
+                document.getElementById('textInput').focus();
+                return;
+            }
+            
+            const correctRadio = document.querySelector('input[name="correct"]:checked');
+            const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
             
             const options = [];
             document.querySelectorAll('.option-input').forEach((input, idx) => {
-                if (input.value.trim()) {
-                    options.push({ text: input.value.trim(), id: 'opt_' + idx });
+                const optText = input.value.trim();
+                if (optText) {
+                    options.push({ text: optText, is_correct: idx === correctIdx });
                 }
             });
             
@@ -284,11 +176,20 @@
                 return;
             }
             
-            const data = { title, text, options, correct_option_index: correctIdx };
+            const data = { title, text, options };
             
             try {
-                const url = questionId ? '/api/questions/' + questionId : '/api/questions';
-                const method = questionId ? 'PUT' : 'POST';
+                let url, method;
+                if (questionId) {
+                    url = '/api/questions/' + questionId;
+                    method = 'PUT';
+                } else if (testId) {
+                    url = '/api/tests/' + testId + '/questions';
+                    method = 'POST';
+                } else {
+                    url = '/api/questions';
+                    method = 'POST';
+                }
                 
                 const res = await fetch(url, {
                     method,
@@ -297,12 +198,14 @@
                 });
                 
                 if (res.ok) {
-                    const result = await res.json();
-                    alert(questionId ? 'Вопрос обновлён (создана новая версия)' : 'Вопрос создан');
-                    if (!questionId && result.id) {
-                        window.location.href = '/teacher/question/' + result.id;
-                    } else {
+                    if (testId) {
+                        window.location.href = '/teacher/test/' + testId;
+                    } else if (questionId) {
+                        alert('Вопрос сохранён');
                         window.location.reload();
+                    } else {
+                        const result = await res.json();
+                        window.location.href = '/teacher/question/' + result.id;
                     }
                 } else {
                     const err = await res.json();
@@ -311,26 +214,22 @@
             } catch (err) {
                 alert('Ошибка сети: ' + err.message);
             }
-        }
+        };
         
         async function deleteQuestion() {
-            if (!confirm('Удалить этот вопрос? Это действие нельзя отменить.')) return;
-            
+            if (!confirm('Удалить вопрос?')) return;
             try {
                 const res = await fetch('/api/questions/' + questionId, { method: 'DELETE' });
                 if (res.ok) {
-                    window.location.href = '/teacher';
+                    window.location.href = '/teacher/questions';
                 } else {
                     const err = await res.json();
-                    alert('Ошибка: ' + (err.error || 'Не удалось удалить. Возможно, вопрос используется в тестах.'));
+                    alert('Ошибка: ' + (err.error || 'Не удалось удалить'));
                 }
             } catch (err) {
                 alert('Ошибка сети: ' + err.message);
             }
         }
-        
-        // Initial preview
-        updatePreview();
     </script>
 </body>
 </html>

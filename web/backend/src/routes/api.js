@@ -430,10 +430,21 @@ router.get('/users/:id/roles', requireAuth, async (req, res) => {
 
 router.put('/users/:id/roles', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.setUserRoles(req.params.id, req.body.roles, getAccessToken(req));
+    // Проверяем, что пользователь админ или изменяет свои роли
+    const currentUser = req.sessionData?.userData;
+    const isAdmin = currentUser?.roles?.includes('admin') || currentUser?.roles?.includes('Админ');
+    const isSelf = currentUser?.id === req.params.id;
+    
+    if (!isAdmin && !isSelf) {
+      return res.status(403).json({ error: 'Только администратор может изменять роли пользователей' });
+    }
+    
+    // Используем auth модуль для обновления ролей
+    const authApiClient = require('../utils/authApiClient');
+    const data = await authApiClient.updateUserRoles(req.params.id, req.body.roles);
     res.json(data);
   } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
+    res.status(error.response?.status || 500).json({ error: error.message, details: error.response?.data });
   }
 });
 
@@ -517,6 +528,48 @@ router.get('/me', requireAuth, async (req, res) => {
     res.json(userData);
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
+// Получить статистику студента курса
+router.get('/courses/:courseId/student/:studentId/stats', requireAuth, async (req, res) => {
+  const { courseId, studentId } = req.params;
+  const accessToken = getAccessToken(req);
+  
+  try {
+    // Получаем статистику студента по тестам курса
+    const testsResponse = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/db/users/${studentId}/tests`,
+      method: 'get',
+      accessToken
+    });
+    
+    const tests = testsResponse?.data?.tests || [];
+    
+    // Фильтруем тесты только для этого курса
+    const courseTests = tests.filter(test => test.course_id === courseId);
+    
+    // Считаем статистику
+    const testsCount = courseTests.length;
+    const completedTests = courseTests.filter(test => test.completed);
+    const totalScore = completedTests.reduce((sum, test) => sum + (test.score || 0), 0);
+    const maxScore = completedTests.reduce((sum, test) => sum + (test.max_score || 0), 0);
+    const averageScore = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+    
+    // Находим дату последнего теста
+    const lastTest = completedTests.sort((a, b) => new Date(b.finished_at) - new Date(a.finished_at))[0];
+    
+    res.json({
+      tests_count: testsCount,
+      completed_tests: completedTests.length,
+      average_score: averageScore,
+      total_score: totalScore,
+      max_score: maxScore,
+      last_test_date: lastTest?.finished_at || null
+    });
+  } catch (error) {
+    console.error(`[API] Error getting student stats:`, error);
+    res.status(error.status || 500).json({ error: error.message });
   }
 });
 
