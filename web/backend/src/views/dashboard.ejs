@@ -353,6 +353,9 @@
             <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
             <a href="/teacher" class="confirm-btn" style="background: #48bb78;">📝 Панель преподавателя</a>
             <% } %>
+            <% if (user.roles && (user.roles.includes('admin') || user.roles.includes('Администратор'))) { %>
+            <a href="/admin/users" class="confirm-btn" style="background: #e53e3e;">👥 Управление пользователями</a>
+            <% } %>
             <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">📖 Дисциплины</a>
             <a href="/profile" class="confirm-btn" style="background: #4a5568;">👤 Профиль</a>
             <a href="/auth/confirm" class="confirm-btn">Подтвердить вход</a>

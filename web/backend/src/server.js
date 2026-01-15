@@ -11,6 +11,7 @@ const apiRoutes = require('./routes/api');
 const mockRoutes = require('./routes/mock'); // Добавляем маршруты заглушек
 const teacherRoutes = require('./routes/teacher'); // Маршруты редактора курсов
 const testDisciplinesRoutes = require('./routes/test-disciplines'); // Тестовые дисциплины
+const adminRoutes = require('./routes/admin'); // Административные маршруты
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -98,6 +99,7 @@ app.use('/', mainRoutes);
 app.use('/auth', authRoutes);
 app.use('/mock', mockRoutes); // Подключаем маршруты заглушек
 app.use('/teacher', teacherRoutes); // Панель преподавателя и редактор курсов
+app.use('/admin', adminRoutes); // Административные маршруты
 app.use('/api', apiRoutes); // API routes moved after session middleware
 
 // Обработка 404
