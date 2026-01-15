@@ -389,6 +389,160 @@ router.get('/test/:id', async (req, res) => {
   }
 });
 
+// POST маршрут для записи на курс
+router.post('/api/courses/:id/enroll', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const courseId = req.params.id;
+  const userId = req.body.user_id;
+  const accessToken = sessionData?.accessToken;
+  
+  // Проверяем, что пользователь записывает себя на курс
+  if (userId !== sessionData?.userData?.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    const enrollResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${courseId}/enroll`,
+      method: 'post',
+      body: { user_id: userId },
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(enrollResp?.data || { success: true });
+  } catch (error) {
+    console.error(`[MAIN] Ошибка при записи на курс ${courseId}:`, error);
+    res.status(error.status || 500).json({ 
+      error: error.message || 'Не удалось записаться на курс' 
+    });
+  }
+});
+
+// Страница дисциплин
+router.get('/disciplines', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.redirect('/');
+  }
+  
+  try {
+    const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
+    const accessToken = sessionData?.accessToken;
+    
+    let allCourses = [];
+    let userCourses = [];
+    
+    // Получаем все доступные курсы
+    if (accessToken) {
+      try {
+        const allCoursesResp = await mainApiClient.requestWithRefresh({
+          endpoint: `/api/courses`,
+          method: 'get',
+          sessionToken: req.sessionToken,
+          sessionData,
+          sessionManager,
+          authApiClient,
+          res
+        });
+        const allCoursesData = allCoursesResp?.data;
+        if (allCoursesData && Array.isArray(allCoursesData)) {
+          allCourses = allCoursesData;
+        } else if (allCoursesData && allCoursesData.courses) {
+          allCourses = allCoursesData.courses;
+        }
+      } catch (err) {
+        console.warn('[MAIN] Не удалось получить все курсы:', err.message);
+      }
+      
+      // Получаем курсы пользователя
+      if (user.id) {
+        try {
+          const userCoursesResp = await mainApiClient.requestWithRefresh({
+            endpoint: `/api/db/users/${user.id}/courses`,
+            method: 'get',
+            sessionToken: req.sessionToken,
+            sessionData,
+            sessionManager,
+            authApiClient,
+            res
+          });
+          const userCoursesData = userCoursesResp?.data;
+          if (userCoursesData && Array.isArray(userCoursesData)) {
+            userCourses = userCoursesData;
+          } else if (userCoursesData && userCoursesData.courses) {
+            userCourses = userCoursesData.courses;
+          }
+        } catch (err) {
+          console.warn('[MAIN] Не удалось получить курсы пользователя:', err.message);
+        }
+      }
+    }
+    
+    // Определяем, на какие курсы пользователь уже записан
+    const userCourseIds = new Set(userCourses.map(course => course.id));
+    
+    // Если API недоступен или нет курсов, добавляем тестовые курсы для демонстрации
+    if (allCourses.length === 0) {
+      console.log('[MAIN] API недоступен или нет курсов, используем тестовые курсы');
+      allCourses = [
+        {
+          id: 'test-course-1',
+          name: 'Тестовый курс программирования',
+          description: 'Это тестовый курс для изучения основ программирования. Включает в себя базовые концепции алгоритмов, структур данных и практические задания.',
+          active: true,
+          tests_count: 3
+        },
+        {
+          id: 'test-course-2', 
+          name: 'Математический анализ',
+          description: 'Курс по изучению математического анализа, включая дифференциальное и интегральное исчисление, теорию пределов и рядов.',
+          active: true,
+          tests_count: 5
+        },
+        {
+          id: 'test-course-3',
+          name: 'Физика для начинающих', 
+          description: 'Основы классической механики, термодинамики и электромагнетизма. Практические примеры и эксперименты.',
+          active: true,
+          tests_count: 4
+        }
+      ];
+    }
+    
+    // Разделяем курсы на доступные для записи и уже записанные
+    const availableCourses = allCourses.filter(course => 
+      course.active && !userCourseIds.has(course.id)
+    );
+    const enrolledCourses = allCourses.filter(course => 
+      userCourseIds.has(course.id)
+    );
+    
+    res.render('disciplines', {
+      title: 'Дисциплины',
+      user: user,
+      availableCourses: availableCourses,
+      enrolledCourses: enrolledCourses
+    });
+  } catch (error) {
+    console.error('[MAIN] Ошибка при загрузке дисциплин:', error);
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить дисциплины. Попробуйте позже.'
+    });
+  }
+});
+
 // Страница профиля
 router.get('/profile', async (req, res) => {
   if (req.userStatus !== 'authenticated') {

@@ -176,11 +176,11 @@ router.get('/quick-login', async (req, res) => {
     return res.status(500).send('Ошибка создания сессии');
   }
   
-  // Сразу авторизуем
+  // Сразу авторизуем с существующим пользователем из main модуля
   const mockUser = {
-    id: `test_user_${Date.now()}`,
-    email: 'test@example.com',
-    name: 'Тестовый Пользователь',
+    id: '6967fc0c4f5073fba4893291', // Существующий пользователь в main модуле
+    email: 'iladzbn@gmail.com',
+    name: 'Аноним955959',
     roles: ['student'],
     permissions: ['course:read', 'test:take']
   };
@@ -211,6 +211,112 @@ router.get('/session-info', (req, res) => {
     cookies: req.cookies,
     timestamp: new Date().toISOString()
   });
+});
+
+// Создать тестовые курсы
+router.get('/create-test-courses', async (req, res) => {
+  try {
+    const mainApiClient = require('../utils/mainApiClient');
+    
+    // Создаем тестовый курс
+    const testCourse = {
+      name: 'Тестовый курс программирования',
+      description: 'Это тестовый курс для изучения основ программирования. Включает в себя базовые концепции алгоритмов, структур данных и практические задания.',
+      active: true
+    };
+    
+    // Создаем второй курс
+    const mathCourse = {
+      name: 'Математический анализ',
+      description: 'Курс по изучению математического анализа, включая дифференциальное и интегральное исчисление, теорию пределов и рядов.',
+      active: true
+    };
+    
+    // Создаем третий курс
+    const physicsCourse = {
+      name: 'Физика для начинающих',
+      description: 'Основы классической механики, термодинамики и электромагнетизма. Практические примеры и эксперименты.',
+      active: true
+    };
+    
+    const courses = [testCourse, mathCourse, physicsCourse];
+    const createdCourses = [];
+    
+    // Создаем курсы по очереди
+    for (const courseData of courses) {
+      try {
+        const response = await mainApiClient.createCourse(courseData, 'mock_token');
+        createdCourses.push({
+          ...courseData,
+          id: response.data?.id || Math.random().toString(36).substr(2, 9),
+          created: true
+        });
+      } catch (error) {
+        console.error('Ошибка создания курса:', error.message);
+        createdCourses.push({
+          ...courseData,
+          id: Math.random().toString(36).substr(2, 9),
+          created: false,
+          error: error.message
+        });
+      }
+    }
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Тестовые курсы созданы</title>
+          <style>
+              body { font-family: Arial, sans-serif; padding: 40px; background: #f5f7fa; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+              .success { color: #10b981; }
+              .error { color: #ef4444; }
+              .course { margin: 20px 0; padding: 15px; border: 1px solid #e5e7eb; border-radius: 8px; }
+              h1 { color: #333; margin-bottom: 20px; }
+              h3 { color: #667eea; margin-bottom: 10px; }
+              p { color: #666; line-height: 1.6; }
+              .btn { display: inline-block; padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin-top: 20px; }
+          </style>
+      </head>
+      <body>
+          <div class="container">
+              <h1 class="success">✅ Тестовые курсы созданы!</h1>
+              <p>Было создано ${createdCourses.length} тестовых курсов для проверки системы дисциплин.</p>
+              
+              ${createdCourses.map(course => `
+                  <div class="course">
+                      <h3>${course.created ? '✅' : '❌'} ${course.name}</h3>
+                      <p>${course.description}</p>
+                      ${course.created ? '<p style="color: #10b981; font-size: 14px;">Курс успешно создан и активен</p>' : `<p style="color: #ef4444; font-size: 14px;">Ошибка: ${course.error}</p>`}
+                  </div>
+              `).join('')}
+              
+              <a href="/disciplines" class="btn">📖 Перейти к дисциплинам</a>
+              <a href="/" class="btn" style="margin-left: 10px;">🏠 На главную</a>
+          </div>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Ошибка</title>
+          <style>
+              body { font-family: Arial, sans-serif; padding: 40px; text-align: center; }
+              .error { color: #ef4444; }
+          </style>
+      </head>
+      <body>
+          <h1 class="error">❌ Ошибка создания курсов</h1>
+          <p>${error.message}</p>
+          <a href="/">Вернуться на главную</a>
+      </body>
+      </html>
+    `);
+  }
 });
 
 module.exports = router;

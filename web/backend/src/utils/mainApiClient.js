@@ -59,8 +59,12 @@ class MainApiClient {
           const latestSession = await sessionManager.getSession(sessionToken);
           const latestAccessToken = latestSession?.accessToken;
           const latestRefreshToken = latestSession?.refreshToken;
+          const latestUpdatedAt = latestSession?.updatedAt;
 
-          if (latestAccessToken && latestRefreshToken && latestRefreshToken !== refreshToken) {
+          // Проверяем по timestamp и по токенам
+          if (latestAccessToken && latestRefreshToken && 
+              (latestRefreshToken !== refreshToken || 
+               (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
             console.log('[MainApiClient] Токены уже обновлены в Redis, повторяем запрос без refresh...');
             const retryResult = await this.request(endpoint, method, data, latestAccessToken);
             return {
@@ -86,8 +90,11 @@ class MainApiClient {
             const latestSession = await sessionManager.getSession(sessionToken);
             const latestAccessToken = latestSession?.accessToken;
             const latestRefreshToken = latestSession?.refreshToken;
+            const latestUpdatedAt = latestSession?.updatedAt;
 
-            if (latestAccessToken && latestRefreshToken && latestRefreshToken !== refreshToken) {
+            if (latestAccessToken && latestRefreshToken && 
+                (latestRefreshToken !== refreshToken || 
+                 (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
               console.log('[MainApiClient] Refresh упал, но токены уже обновлены в Redis, повторяем запрос...');
               const retryResult = await this.request(endpoint, method, data, latestAccessToken);
               return {

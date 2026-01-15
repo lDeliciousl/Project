@@ -32,11 +32,15 @@ async function sessionMiddleware(req, res, next) {
   req.sessionToken = sessionToken;
   req.sessionData = sessionData;
   
-  // Обновляем время последней активности
-  await sessionManager.updateSession(sessionToken, {
-    lastActivity: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
+  // Обновляем время последней активности (не чаще чем раз в минуту)
+  const now = Date.now();
+  const lastUpdate = new Date(sessionData.lastActivity || 0).getTime();
+  if (!lastUpdate || now - lastUpdate > 60000) { // раз в минуту
+    await sessionManager.updateSession(sessionToken, {
+      lastActivity: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  }
 
   // По ТЗ: для anonymous пользователей проверяем статус loginToken через auth-module
   // Это делается на каждом запросе (кроме /auth/* чтобы избежать циклов)
@@ -100,28 +104,45 @@ async function sessionMiddleware(req, res, next) {
   if (sessionData.status === 'authenticated' && sessionData.accessToken && sessionData.userData) {
     console.log('[SESSION] Проверка синхронизации для пользователя:', sessionData.userData.email);
     try {
-      // Проверяем, есть ли пользователь в main-module
-      const userExists = await mainApiClient.getUsers(sessionData.accessToken)
-        .then(users => {
-          const userList = users.users || users;
-          return userList && userList.some(user => user.id === sessionData.userData.id);
-        })
-        .catch(() => false);
+      // Добавляем таймаут для операции с Main модулем
+      const usersResponse = await Promise.race([
+        mainApiClient.getUsers(sessionData.accessToken),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Main module timeout')), 5000)
+        )
+      ]);
+      
+      const userList = Array.isArray(usersResponse) ? usersResponse : (usersResponse?.users || []);
+      const userExists = userList.some(user => user.id === sessionData.userData.id);
       
       if (!userExists) {
-        // Синхронизируем пользователя с main-module
-        await mainApiClient.addUser({
-          user_id: sessionData.userData.id,
-          email: sessionData.userData.email,
-          full_name: sessionData.userData.name,
-          roles: `{${sessionData.userData.roles.join(',')}}`
-        }, sessionData.accessToken);
+        // Синхронизируем пользователя с main-module с таймаутом
+        await Promise.race([
+          mainApiClient.addUser({
+            user_id: sessionData.userData.id,
+            email: sessionData.userData.email,
+            full_name: sessionData.userData.name,
+            roles: `{${sessionData.userData.roles.join(',')}}`
+          }, sessionData.accessToken),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Main module timeout during sync')), 3000)
+          )
+        ]);
         console.log('[SESSION] Пользователь синхронизирован с main-module:', sessionData.userData.email);
       }
     } catch (syncError) {
-      console.warn('[SESSION] Ошибка синхронизации с main-module:', syncError.message || syncError);
+      if (syncError.message === 'Main module timeout' || syncError.message === 'Main module timeout during sync') {
+        console.warn('[SESSION] Таймаут при синхронизации с main-module, пропускаем');
+      } else {
+        console.warn('[SESSION] Ошибка синхронизации с main-module:', syncError.message || syncError);
+      }
       // Не прерываем работу при ошибке синхронизации
     }
+  }
+
+  // Временно упрощаем проверку для авторизованных пользователей
+  if (sessionData.status === 'authenticated') {
+    console.log('[SESSION] Авторизованный пользователь:', sessionData.userData?.email);
   }
 
   next();
