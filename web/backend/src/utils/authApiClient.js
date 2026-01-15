@@ -189,10 +189,13 @@ class AuthApiClient {
    * Обновляет роли пользователя
    * @param {string} userId - ID пользователя
    * @param {string[]} roles - Новые роли
+   * @param {string} accessToken - Access токен администратора
    * @returns {Promise<object>} Результат операции
    */
-  async updateUserRoles(userId, roles) {
-    return this.request(`/api/auth/users/${userId}/roles`, 'put', { roles });
+  async updateUserRoles(userId, roles, accessToken) {
+    return this.request(`/api/auth/users/${userId}/roles`, 'put', { roles }, {
+      'Authorization': `Bearer ${accessToken}`
+    });
   }
 
   // ========== Служебные методы ==========
