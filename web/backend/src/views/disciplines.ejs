@@ -478,10 +478,13 @@
                 submitBtn.disabled = true;
                 
                 try {
-                    const formData = new FormData(this);
+                    const userId = this.querySelector('input[name="user_id"]').value;
                     const response = await fetch(this.action, {
                         method: 'POST',
-                        body: formData
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ user_id: userId })
                     });
                     
                     if (response.ok) {
