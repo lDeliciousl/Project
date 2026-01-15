@@ -48,15 +48,40 @@ CREATE TABLE IF NOT EXISTS tests (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Вопросы теперь независимы от тестов (связь через test_questions)
+-- Поддержка версионирования: base_question_id указывает на оригинал, version = номер версии
 CREATE TABLE IF NOT EXISTS questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    test_id UUID REFERENCES tests(id) ON DELETE CASCADE,
+    base_question_id UUID,  -- NULL для первой версии, ссылка на оригинал для последующих
+    version INTEGER DEFAULT 1,
+    title VARCHAR(255),
     text TEXT NOT NULL,
     question_type VARCHAR(50) DEFAULT 'single_choice',
     points INTEGER DEFAULT 1,
-    order_number INTEGER DEFAULT 0,
+    author_id UUID REFERENCES users(id),
+    is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Таблица связи тест-вопрос (по ТЗ вопросы независимы от тестов)
+CREATE TABLE IF NOT EXISTS test_questions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    test_id UUID REFERENCES tests(id) ON DELETE CASCADE,
+    question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+    question_version INTEGER DEFAULT 1,  -- версия вопроса, зафиксированная при добавлении
+    order_number INTEGER DEFAULT 0,
+    UNIQUE(test_id, question_id)
+);
+
+-- Миграция: добавляем недостающие колонки если таблица уже существует
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS base_question_id UUID;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS author_id UUID REFERENCES users(id);
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+
+-- Индекс для быстрого поиска последней версии вопроса
+CREATE INDEX IF NOT EXISTS idx_questions_base_version ON questions(base_question_id, version DESC);
 
 CREATE TABLE IF NOT EXISTS question_options (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -81,11 +106,17 @@ CREATE TABLE IF NOT EXISTS attempt_answers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     attempt_id UUID REFERENCES test_attempts(id) ON DELETE CASCADE,
     question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
-    option_id UUID REFERENCES question_options(id),
+    question_version INTEGER DEFAULT 1,  -- версия вопроса на момент ответа
+    selected_option INTEGER DEFAULT -1,  -- индекс выбранного варианта (-1 = не отвечено)
+    option_id UUID REFERENCES question_options(id),  -- для обратной совместимости
     is_correct BOOLEAN,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(attempt_id, question_id)
 );
+
+-- Миграция для attempt_answers
+ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS question_version INTEGER DEFAULT 1;
+ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS selected_option INTEGER DEFAULT -1;
 
 -- Тестовые данные
 INSERT INTO users (id, email, full_name, roles) VALUES
@@ -112,9 +143,16 @@ INSERT INTO tests (id, name, description, course_id, created_by) VALUES
     ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Тест по основам математики', 'Проверка базовых знаний', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '22222222-2222-2222-2222-222222222222')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO questions (id, test_id, text, question_type, points, order_number) VALUES
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Сколько будет 2+2?', 'single_choice', 1, 1),
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Сколько будет 3*3?', 'single_choice', 1, 2)
+-- Тестовые вопросы (независимые от тестов)
+INSERT INTO questions (id, title, text, question_type, points, version, author_id) VALUES
+    ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Сложение', 'Сколько будет 2+2?', 'single_choice', 1, 1, '22222222-2222-2222-2222-222222222222'),
+    ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'Умножение', 'Сколько будет 3*3?', 'single_choice', 1, 1, '22222222-2222-2222-2222-222222222222')
+ON CONFLICT DO NOTHING;
+
+-- Связь вопросов с тестом
+INSERT INTO test_questions (test_id, question_id, question_version, order_number) VALUES
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 1, 1),
+    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 1, 2)
 ON CONFLICT DO NOTHING;
 INSERT INTO question_options (id, question_id, text, is_correct, order_number) VALUES
     ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '3', FALSE, 1),
