@@ -86,7 +86,7 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 		AvatarURL:  githubUser.AvatarURL,
 		Provider:   "github",
 		ProviderID: fmt.Sprintf("%d", githubUser.ID),
-		Roles:      []string{"user"},
+		Roles:      []string{"Студент"},
 		IsActive:   true,
 	}, nil
 }

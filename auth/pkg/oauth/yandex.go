@@ -96,7 +96,7 @@ func (p *YandexProvider) GetUserInfo(ctx context.Context, token *oauth2.Token) (
 		AvatarURL:  avatarURL,
 		Provider:   "yandex",
 		ProviderID: yandexUser.ID,
-		Roles:      []string{"user"},
+		Roles:      []string{"Студент"},
 		IsActive:   true,
 	}, nil
 }
