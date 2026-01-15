@@ -83,6 +83,20 @@ router.get('/', requireTeacher, async (req, res) => {
         totalTests += course.tests_count || 0;
         totalStudents += course.students_count || 0;
       }
+      
+      // Получаем общее количество студентов (не только в курсах преподавателя)
+      try {
+        const usersResponse = await apiRequest(req, '/api/db/users');
+        const allUsers = Array.isArray(usersResponse) ? usersResponse : (usersResponse && usersResponse.users ? usersResponse.users : []);
+        
+        // Считаем всех студентов
+        totalStudents = allUsers.filter(user => {
+          const roles = user.roles || '[]';
+          return roles.includes('student') || roles.includes('Студент') || roles.includes('user');
+        }).length;
+      } catch (err) {
+        console.warn('[Teacher] Не удалось получить общее количество студентов:', err.message);
+      }
     } catch (err) {
       console.warn('[Teacher] Не удалось загрузить курсы:', err.message);
     }
@@ -99,13 +113,38 @@ router.get('/', requireTeacher, async (req, res) => {
       console.warn('[Teacher] Не удалось загрузить вопросы:', err.message);
     }
     
+    // Получаем количество заблокированных пользователей
+    let bannedUsers = 0;
+    try {
+      const usersResponse = await apiRequest(req, '/api/db/users');
+      const users = Array.isArray(usersResponse) ? usersResponse : (usersResponse && usersResponse.users ? usersResponse.users : []);
+      
+      let bannedUsersList = [];
+      for (let user of users) {
+        try {
+          const blockResponse = await apiRequest(req, `/api/db/users/${user.id}/block`);
+          if (blockResponse.is_blocked) {
+            user.is_blocked = true;
+            bannedUsersList.push(user);
+          }
+        } catch (error) {
+          console.warn(`[Teacher] Не удалось получить статус блокировки для ${user.id}:`, error.message);
+          user.is_blocked = false;
+        }
+      }
+      bannedUsers = bannedUsersList.length;
+    } catch (err) {
+      console.warn('[Teacher] Не удалось получить количество заблокированных пользователей:', err.message);
+    }
+    
     res.render('teacher-dashboard', {
       title: 'Панель преподавателя',
       user,
       courses,
       myQuestions,
       totalTests,
-      totalStudents
+      totalStudents,
+      bannedUsers
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки панели:', error);
@@ -116,7 +155,7 @@ router.get('/', requireTeacher, async (req, res) => {
       myQuestions: [],
       totalTests: 0,
       totalStudents: 0,
-      error: 'Не удалось загрузить данные'
+      bannedUsers: 0
     });
   }
 });
@@ -469,10 +508,22 @@ router.get('/students', requireTeacher, async (req, res) => {
     console.log('[Teacher] Students array:', students);
     
     // Фильтруем только студентов (не преподавателей и не админов)
-    const allStudents = students.filter(user => {
+    let allStudents = students.filter(user => {
       const roles = user.roles || '[]';
       return roles.includes('student') || roles.includes('Студент') || roles.includes('user');
     });
+    
+    // Получаем статус блокировки для каждого студента
+    const accessToken = req.sessionData?.accessToken;
+    for (let student of allStudents) {
+      try {
+        const blockResponse = await apiRequest(req, `/api/db/users/${student.id}/block`);
+        student.is_blocked = blockResponse.is_blocked || false;
+      } catch (error) {
+        console.warn(`[Teacher] Не удалось получить статус блокировки для ${student.id}:`, error.message);
+        student.is_blocked = false;
+      }
+    }
     
     const totalStudents = allStudents.length;
     
@@ -489,6 +540,46 @@ router.get('/students', requireTeacher, async (req, res) => {
       title: 'Ошибка',
       statusCode: 500,
       message: 'Не удалось загрузить список студентов.'
+    });
+  }
+});
+
+// Страница заблокированных пользователей
+router.get('/banned-users', requireTeacher, async (req, res) => {
+  try {
+    // Получаем всех пользователей
+    const response = await apiRequest(req, '/api/db/users');
+    const users = Array.isArray(response) ? response : (response && response.users ? response.users : []);
+    
+    // Получаем статус блокировки для каждого пользователя
+    const accessToken = req.sessionData?.accessToken;
+    let bannedUsersList = [];
+    
+    for (let user of users) {
+      try {
+        const blockResponse = await apiRequest(req, `/api/db/users/${user.id}/block`);
+        if (blockResponse.is_blocked) {
+          user.is_blocked = true;
+          bannedUsersList.push(user);
+        }
+      } catch (error) {
+        console.warn(`[Teacher] Не удалось получить статус блокировки для ${user.id}:`, error.message);
+        user.is_blocked = false;
+      }
+    }
+    
+    res.render('banned-users', {
+      title: 'Заблокированные пользователи - Система тестирования',
+      bannedUsers: bannedUsersList,
+      totalUsers: users.length,
+      sessionData: req.sessionData
+    });
+  } catch (error) {
+    console.error('[Teacher] Error loading banned users:', error);
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить список заблокированных пользователей.'
     });
   }
 });

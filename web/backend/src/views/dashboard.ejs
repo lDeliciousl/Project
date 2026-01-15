@@ -175,6 +175,133 @@
             background: white;
             border-radius: 10px;
         }
+        /* Стили уведомлений */
+        .notifications-container {
+            position: relative;
+        }
+        .notifications-icon {
+            position: relative;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 8px;
+            border-radius: 50%;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+        }
+        .notifications-icon:hover {
+            background: #e9ecef;
+            transform: scale(1.1);
+        }
+        .notifications-count {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: #ff4757;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border: 2px solid white;
+        }
+        .notifications-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            width: 350px;
+            max-height: 400px;
+            z-index: 1000;
+            display: none;
+            overflow: hidden;
+        }
+        .notifications-dropdown.show {
+            display: block;
+        }
+        .notifications-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        .notifications-header h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .clear-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .clear-btn:hover {
+            background: #ff3742;
+        }
+        .notifications-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .notification-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #f1f3f4;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .notification-item:hover {
+            background: #f8f9fa;
+        }
+        .notification-item.unread {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+        .notification-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        .notification-message {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .notification-time {
+            font-size: 11px;
+            color: #999;
+        }
+        .no-notifications {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .notifications-footer {
+            padding: 10px 15px;
+            border-top: 1px solid #e9ecef;
+            background: #f8f9fa;
+            text-align: center;
+        }
+        .view-all-btn {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .view-all-btn:hover {
+            text-decoration: underline;
+        }
         /* Мобильная адаптация */
         @media (max-width: 768px) {
             .header {
@@ -198,6 +325,24 @@
             <span>Система тестирования</span>
         </div>
         <div class="user-info">
+            <div class="notifications-container" id="notificationsContainer">
+                <div class="notifications-icon" onclick="toggleNotifications()">
+                    🔔
+                    <span class="notifications-count" id="notificationsCount">0</span>
+                </div>
+                <div class="notifications-dropdown" id="notificationsDropdown">
+                    <div class="notifications-header">
+                        <h4>Уведомления</h4>
+                        <button onclick="clearAllNotifications()" class="clear-btn">Очистить</button>
+                    </div>
+                    <div class="notifications-list" id="notificationsList">
+                        <div class="no-notifications">Нет уведомлений</div>
+                    </div>
+                    <div class="notifications-footer">
+                        <a href="/notifications" class="view-all-btn">Все уведомления</a>
+                    </div>
+                </div>
+            </div>
             <div class="avatar">
                 <%= user.avatarLetter || user.name.charAt(0).toUpperCase() %>
             </div>
@@ -251,5 +396,207 @@
             </div>
         <% } %>
     </div>
+
+    <script>
+        // Сохраняем токены в localStorage для использования в API запросах
+        const accessToken = '<%= sessionData?.accessToken || "" %>';
+        const refreshToken = '<%= sessionData?.refreshToken || "" %>';
+        
+        if (accessToken && refreshToken) {
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('refresh_token', refreshToken);
+            console.log('[DASHBOARD] Токены сохранены в localStorage');
+        } else {
+            console.log('[DASHBOARD] Токены не найдены в сессии');
+        }
+
+        // Проверяем статус авторизации
+        function checkAuthStatus() {
+            const storedToken = localStorage.getItem('access_token');
+            if (!storedToken) {
+                console.log('[DASHBOARD] Токен отсутствует в localStorage, перенаправляем на вход');
+                window.location.href = '/login';
+            }
+        }
+
+        // Проверяем при загрузке
+        checkAuthStatus();
+
+        async function syncTokensFromApi() {
+            try {
+                const resp = await fetch('/api/session-tokens', { cache: 'no-store' });
+                if (!resp.ok) throw new Error('tokens not ready');
+                const { accessToken, refreshToken } = await resp.json();
+                if (accessToken && refreshToken) {
+                    localStorage.setItem('access_token', accessToken);
+                    localStorage.setItem('refresh_token', refreshToken);
+                    console.log('[SESSION-TOKENS] Синхронизированы через API');
+                    checkAuthStatus();
+                }
+            } catch (err) {
+                console.log('[SESSION-TOKENS] Токены ещё не готовы:', err.message);
+            }
+        }
+
+        syncTokensFromApi();
+
+        // Периодическая проверка (каждые 30 секунд)
+        setInterval(checkAuthStatus, 30000);
+
+        // ========== ФУНКЦИИ УВЕДОМЛЕНИЙ ==========
+
+        // Переключение отображения dropdown уведомлений
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notificationsDropdown');
+            dropdown.classList.toggle('show');
+
+            // Если открываем, загружаем уведомления
+            if (dropdown.classList.contains('show')) {
+                loadNotifications();
+            }
+        }
+
+        // Закрытие dropdown при клике вне его
+        document.addEventListener('click', function(event) {
+            const container = document.getElementById('notificationsContainer');
+            if (!container.contains(event.target)) {
+                document.getElementById('notificationsDropdown').classList.remove('show');
+            }
+        });
+
+        // Загрузка уведомлений
+        async function loadNotifications() {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    console.log('[NOTIFICATIONS] Нет токена для загрузки уведомлений');
+                    return;
+                }
+
+                const response = await fetch('/api/notification', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayNotifications(data.notifications || []);
+                updateNotificationsCount(data.notifications || []);
+
+                console.log('[NOTIFICATIONS] Уведомления загружены:', data.notifications?.length || 0);
+            } catch (error) {
+                console.error('[NOTIFICATIONS] Ошибка загрузки уведомлений:', error);
+                displayNotifications([]);
+                updateNotificationsCount([]);
+            }
+        }
+
+        // Отображение уведомлений в dropdown
+        function displayNotifications(notifications) {
+            const list = document.getElementById('notificationsList');
+
+            if (!notifications || notifications.length === 0) {
+                list.innerHTML = '<div class="no-notifications">Нет уведомлений</div>';
+                return;
+            }
+
+            const notificationsHtml = notifications.map(notification => `
+                <div class="notification-item ${notification.read ? '' : 'unread'}" onclick="handleNotificationClick('${notification.id}', '${notification.type || 'info'}', '${notification.link || ''}')">
+                    <div class="notification-title">${notification.title || 'Уведомление'}</div>
+                    <div class="notification-message">${notification.message || ''}</div>
+                    <div class="notification-time">${formatTime(notification.created_at)}</div>
+                </div>
+            `).join('');
+
+            list.innerHTML = notificationsHtml;
+        }
+
+        // Обновление счетчика уведомлений
+        function updateNotificationsCount(notifications) {
+            const countElement = document.getElementById('notificationsCount');
+            const unreadCount = notifications.filter(n => !n.read).length;
+
+            countElement.textContent = unreadCount;
+            countElement.style.display = unreadCount > 0 ? 'flex' : 'none';
+        }
+
+        // Обработка клика на уведомление
+        function handleNotificationClick(notificationId, type, link) {
+            // Здесь можно добавить логику перехода по ссылке или выполнения действия
+            console.log('[NOTIFICATIONS] Клик на уведомление:', { notificationId, type, link });
+
+            if (link && link !== '') {
+                window.location.href = link;
+            }
+
+            // Закрываем dropdown
+            document.getElementById('notificationsDropdown').classList.remove('show');
+        }
+
+        // Очистка всех уведомлений
+        async function clearAllNotifications() {
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    console.log('[NOTIFICATIONS] Нет токен для очистки уведомлений');
+                    return;
+                }
+
+                const response = await fetch('/api/notification', {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                console.log('[NOTIFICATIONS] Уведомления очищены');
+                loadNotifications(); // Перезагружаем список
+
+            } catch (error) {
+                console.error('[NOTIFICATIONS] Ошибка очистки уведомлений:', error);
+            }
+        }
+
+        // Форматирование времени
+        function formatTime(timestamp) {
+            if (!timestamp) return '';
+
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'Только что';
+            if (diffMins < 60) return `${diffMins} мин. назад`;
+            if (diffHours < 24) return `${diffHours} ч. назад`;
+            if (diffDays < 7) return `${diffDays} д. назад`;
+
+            return date.toLocaleDateString('ru-RU');
+        }
+
+        // Периодическая проверка новых уведомлений (каждые 30 секунд)
+        setInterval(() => {
+            const dropdown = document.getElementById('notificationsDropdown');
+            // Проверяем только если dropdown не открыт
+            if (!dropdown.classList.contains('show')) {
+                loadNotifications();
+            }
+        }, 30000);
+
+        // Загрузка уведомлений при инициализации
+        setTimeout(loadNotifications, 1000);
+    </script>
 </body>
 </html>

@@ -504,6 +504,20 @@ class MainApiClient {
     return this.request('/notification', 'delete', null, accessToken);
   }
 
+  /**
+   * Получить статус блокировки пользователя
+   */
+  async getUserBlockStatus(userId, accessToken) {
+    return this.request(`/users/${userId}/block`, 'get', null, accessToken);
+  }
+
+  /**
+   * Установить статус блокировки пользователя
+   */
+  async setUserBlockStatus(userId, isBlocked, accessToken) {
+    return this.request(`/users/${userId}/block`, 'put', { is_blocked: isBlocked }, accessToken);
+  }
+
   // ========== Служебные методы ==========
 
   /**

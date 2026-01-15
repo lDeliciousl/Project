@@ -426,6 +426,10 @@
                 <div class="stat-value"><%= totalStudents || 0 %></div>
                 <div class="stat-label">Студентов</div>
             </a>
+            <a href="/teacher/banned-users" class="stat-card stat-card-clickable" style="background: #fff5f5; border: 1px solid #fed7d7;">
+                <div class="stat-value" style="color: #e53e3e;"><%= bannedUsers || 0 %></div>
+                <div class="stat-label">🚫 Заблокировано</div>
+            </a>
             <div class="stat-card">
                 <div class="stat-value"><%= myQuestions ? myQuestions.length : 0 %></div>
                 <div class="stat-label">Моих вопросов</div>

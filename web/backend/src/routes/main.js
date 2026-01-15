@@ -4,6 +4,35 @@ const mainApiClient = require('../utils/mainApiClient');
 const sessionManager = require('../utils/session');
 const authApiClient = require('../utils/authApiClient');
 
+// Вспомогательная функция для получения курсов пользователя
+async function getUserCourses(req, userId) {
+  try {
+    const coursesResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/db/users/${userId}/courses`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res: req.res
+    });
+    const coursesData = coursesResp?.data;
+    
+    if (coursesData && Array.isArray(coursesData)) {
+      return coursesData;
+    } else if (coursesData && coursesData.courses && Array.isArray(coursesData.courses)) {
+      return coursesData.courses;
+    } else if (coursesData && coursesData.length > 0) {
+      return coursesData;
+    }
+    
+    return [];
+  } catch (err) {
+    console.warn(`[MAIN] Не удалось получить курсы пользователя ${userId}:`, err.message);
+    return [];
+  }
+}
+
 // Главная страница
 router.get('/', async (req, res) => {
   const { userStatus, sessionData } = req;
@@ -45,6 +74,11 @@ router.get('/', async (req, res) => {
           email: 'unknown@example.com',
           roles: ['student']
         };
+        // Фоллбек имени, если провайдер не прислал
+        if (!user.name || user.name.trim() === '') {
+          user.name = user.email || 'Пользователь';
+        }
+
         const accessToken = sessionData?.accessToken;
         
         let courses = [];
@@ -54,21 +88,7 @@ router.get('/', async (req, res) => {
         if (user.id && accessToken) {
           try {
             // Получаем курсы пользователя
-            const coursesResp = await mainApiClient.requestWithRefresh({
-              endpoint: `/api/db/users/${user.id}/courses`,
-              method: 'get',
-              sessionToken: req.sessionToken,
-              sessionData,
-              sessionManager,
-              authApiClient,
-              res
-            });
-            const coursesData = coursesResp?.data;
-            if (coursesData && Array.isArray(coursesData)) {
-              courses = coursesData;
-            } else if (coursesData && coursesData.courses) {
-              courses = coursesData.courses;
-            }
+            courses = await getUserCourses(req, user.id);
             
             // Получаем дополнительную информацию о пользователе
             try {
@@ -137,7 +157,8 @@ router.get('/', async (req, res) => {
           title: 'Личный кабинет',
           user: user,
           courses: courses,
-          notifications: notifications
+          notifications: notifications,
+          sessionData
         });
       } catch (error) {
         console.error('[MAIN] Критическая ошибка при загрузке dashboard:', error);
@@ -150,7 +171,8 @@ router.get('/', async (req, res) => {
           },
           courses: [],
           notifications: [],
-          error: 'Не удалось загрузить данные.'
+          error: 'Не удалось загрузить данные.',
+          sessionData
         });
       }
       break;
@@ -194,8 +216,6 @@ router.get('/register', (req, res) => {
 // GET /logout?all=true - выход на всех устройствах (+ инвалидация refresh token в auth модуле)
 router.get('/logout', async (req, res) => {
   const { sessionToken, sessionData } = req;
-  const sessionManager = require('../utils/session');
-  const authApiClient = require('../utils/authApiClient');
   
   const logoutAll = req.query.all === 'true';
   
@@ -258,17 +278,7 @@ router.get('/course/:id', async (req, res) => {
         
         // Если не получили, ищем в курсах пользователя
         if (!course) {
-          const coursesResp = await mainApiClient.requestWithRefresh({
-            endpoint: `/api/db/users/${user.id}/courses`,
-            method: 'get',
-            sessionToken: req.sessionToken,
-            sessionData,
-            sessionManager,
-            authApiClient,
-            res
-          });
-          const coursesData = coursesResp?.data;
-          const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
+          const courses = await getUserCourses(req, user.id);
           course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
         }
         
@@ -300,7 +310,7 @@ router.get('/course/:id', async (req, res) => {
     if (!course) {
       return res.status(404).render('error', {
         title: 'Курс не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный курс не существует или недоступен.'
       });
     }
@@ -314,7 +324,7 @@ router.get('/course/:id', async (req, res) => {
     console.error('[MAIN] Критическая ошибка при загрузке курса:', error);
     res.status(500).render('error', {
       title: 'Ошибка',
-      statusCode: 500,
+      status: 500,
       message: 'Не удалось загрузить данные курса. Попробуйте позже.'
     });
   }
@@ -348,7 +358,7 @@ router.get('/test/:id', async (req, res) => {
     if (!testData || !testData.id) {
       return res.status(404).render('error', {
         title: 'Тест не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный тест не существует или был удалён.'
       });
     }
@@ -364,7 +374,7 @@ router.get('/test/:id', async (req, res) => {
     if (error.status === 404) {
       return res.status(404).render('error', {
         title: 'Тест не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный тест не существует.'
       });
     }
@@ -372,7 +382,7 @@ router.get('/test/:id', async (req, res) => {
     if (error.status === 403) {
       return res.status(403).render('error', {
         title: 'Доступ запрещён',
-        statusCode: 403,
+        status: 403,
         message: 'У вас нет доступа к этому тесту.'
       });
     }
@@ -383,7 +393,7 @@ router.get('/test/:id', async (req, res) => {
     
     res.status(500).render('error', {
       title: 'Ошибка',
-      statusCode: 500,
+      status: 500,
       message: 'Не удалось загрузить тест. Попробуйте позже.'
     });
   }
@@ -402,7 +412,7 @@ router.post('/api/courses/:id/enroll', async (req, res) => {
   const accessToken = sessionData?.accessToken;
   
   // Проверяем, что пользователь записывает себя на курс
-  if (userId !== sessionData?.userData?.id) {
+  if (userId != sessionData?.userData?.id) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   
@@ -455,10 +465,13 @@ router.get('/disciplines', async (req, res) => {
           res
         });
         const allCoursesData = allCoursesResp?.data;
+
         if (allCoursesData && Array.isArray(allCoursesData)) {
           allCourses = allCoursesData;
-        } else if (allCoursesData && allCoursesData.courses) {
+        } else if (allCoursesData && allCoursesData.courses && Array.isArray(allCoursesData.courses)) {
           allCourses = allCoursesData.courses;
+        } else {
+          allCourses = [];
         }
       } catch (err) {
         console.warn('[MAIN] Не удалось получить все курсы:', err.message);
@@ -466,25 +479,7 @@ router.get('/disciplines', async (req, res) => {
       
       // Получаем курсы пользователя
       if (user.id) {
-        try {
-          const userCoursesResp = await mainApiClient.requestWithRefresh({
-            endpoint: `/api/db/users/${user.id}/courses`,
-            method: 'get',
-            sessionToken: req.sessionToken,
-            sessionData,
-            sessionManager,
-            authApiClient,
-            res
-          });
-          const userCoursesData = userCoursesResp?.data;
-          if (userCoursesData && Array.isArray(userCoursesData)) {
-            userCourses = userCoursesData;
-          } else if (userCoursesData && userCoursesData.courses) {
-            userCourses = userCoursesData.courses;
-          }
-        } catch (err) {
-          console.warn('[MAIN] Не удалось получить курсы пользователя:', err.message);
-        }
+        userCourses = await getUserCourses(req, user.id);
       }
     }
     
@@ -527,6 +522,9 @@ router.get('/disciplines', async (req, res) => {
       userCourseIds.has(course.id)
     );
     
+    console.log('[MAIN] Final availableCourses:', availableCourses);
+    console.log('[MAIN] Final enrolledCourses:', enrolledCourses);
+    
     res.render('disciplines', {
       title: 'Дисциплины',
       user: user,
@@ -537,7 +535,7 @@ router.get('/disciplines', async (req, res) => {
     console.error('[MAIN] Ошибка при загрузке дисциплин:', error);
     res.status(500).render('error', {
       title: 'Ошибка',
-      statusCode: 500,
+      status: 500,
       message: 'Не удалось загрузить дисциплины. Попробуйте позже.'
     });
   }

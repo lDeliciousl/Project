@@ -323,33 +323,34 @@ router.post('/code/verify', async (req, res) => {
 
 // Колбэк от провайдера авторизации (вызывается после редиректа от auth модуля)
 router.get('/callback', async (req, res) => {
-  const { token } = req.query; // token = loginToken из state
-  const { sessionToken, userStatus, sessionData } = req;
-
-  console.log(`[AUTH CALLBACK] Token: ${token ? token.substring(0, 10) + '...' : 'нет'}`);
-  
-  if (userStatus === 'unknown') {
-    return res.redirect('/');
-  }
-  
-  // Проверяем, что token совпадает с loginToken в сессии
-  const loginToken = sessionData?.loginToken || token;
-  
-  if (!loginToken) {
-    console.error('[AUTH CALLBACK] Нет loginToken в сессии');
-    return res.status(400).render('error', {
-      title: 'Ошибка авторизации',
-      message: 'Не найден токен сессии. Попробуйте авторизоваться заново.'
-    });
-  }
-  
   try {
+    const { token } = req.query; // token = loginToken из state
+    const { sessionToken, userStatus, sessionData } = req;
+
+    console.log(`[AUTH CALLBACK] Token: ${token ? token.substring(0, 10) + '...' : 'нет'}`);
+  
+    if (userStatus === 'unknown') {
+      return res.redirect('/');
+    }
+  
+    // Проверяем, что token совпадает с loginToken в сессии
+    const loginToken = sessionData?.loginToken || token;
+  
+    if (!loginToken) {
+      console.error('[AUTH CALLBACK] Нет loginToken в сессии');
+      return res.status(400).render('error', {
+        title: 'Ошибка авторизации',
+        message: 'Не найден токен сессии. Попробуйте авторизоваться заново.'
+      });
+    }
+
     // Проверяем статус авторизации через auth модуль
     const verifyResponse = await authApiClient.verifyLoginToken(loginToken);
     
     if (verifyResponse && verifyResponse.status === 'granted') {
       // Авторизация успешна, обновляем сессию
       const userData = verifyResponse.user_data;
+      
       await sessionManager.updateToAuthenticated(
         sessionToken,
         verifyResponse.access_token,
@@ -362,8 +363,15 @@ router.get('/callback', async (req, res) => {
         }
       );
       
-      console.log(`[AUTH] Пользователь авторизован через OAuth`);
       res.redirect('/');
+      
+      // Логируем, что токены сохранены в Redis
+      try {
+        const updatedSession = await sessionManager.getSession(sessionToken);
+        console.log(`[AUTH] Токены сохранены в Redis: accessToken=${!!updatedSession.accessToken}, refreshToken=${!!updatedSession.refreshToken}`);
+      } catch (logErr) {
+        console.warn('[AUTH] Не удалось проверить сохранение токенов:', logErr.message);
+      }
     } else if (verifyResponse && verifyResponse.status === 'pending') {
       // Авторизация еще в процессе
       console.log(`[AUTH] Авторизация в процессе, ожидание...`);

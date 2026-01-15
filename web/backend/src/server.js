@@ -96,9 +96,9 @@ app.use(sessionMiddleware);
 // Подключаем маршруты
 app.use('/', mainRoutes);
 app.use('/auth', authRoutes);
-app.use('/api', apiRoutes);
 app.use('/mock', mockRoutes); // Подключаем маршруты заглушек
 app.use('/teacher', teacherRoutes); // Панель преподавателя и редактор курсов
+app.use('/api', apiRoutes); // API routes moved after session middleware
 
 // Обработка 404
 app.use((req, res) => {

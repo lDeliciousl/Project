@@ -22,6 +22,10 @@ class SessionManager {
   async saveSession(sessionToken, data) {
     try {
       if (this.redisAvailable) {
+        // Убеждаемся, что клиент подключен
+        if (!this.client.isOpen) {
+          await this.client.connect();
+        }
         // Сессия хранится 7 дней
         await this.client.set(`session:${sessionToken}`, JSON.stringify(data), {
           EX: 60 * 60 * 24 * 7 // 7 дней в секундах
@@ -55,6 +59,10 @@ class SessionManager {
   async getSession(sessionToken) {
     try {
       if (this.redisAvailable) {
+        // Убеждаемся, что клиент подключен
+        if (!this.client.isOpen) {
+          await this.client.connect();
+        }
         const data = await this.client.get(`session:${sessionToken}`);
         if (data) return JSON.parse(data);
       }
@@ -71,6 +79,9 @@ class SessionManager {
       
       // Fallback на memory storage
       try {
+        if (!this.client.isOpen) {
+          await this.client.connect();
+        }
         const memoryData = this.memoryStorage.get(sessionToken);
         if (memoryData && memoryData.expires > Date.now()) {
           return memoryData.data;

@@ -228,10 +228,10 @@
                                 <p>Тест еще не пройден</p>
                                 <% if (isUuid) { %>
                                     <a href="/test/<%= test.id %>" class="test-btn">Пройти тест</a>
+                                    <span class="test-status status-not-started">Не начат</span>
                                 <% } else { %>
                                     <span class="test-btn-disabled">Тест недоступен</span>
                                 <% } %>
-                                <span class="test-status status-not-started">Не начат</span>
                             <% } %>
                         </div>
                     <% }); %>

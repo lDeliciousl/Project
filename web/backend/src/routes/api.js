@@ -45,8 +45,91 @@ router.get('/test-redis', async (req, res) => {
   }
 });
 
+// Текущее имя пользователя из main модуля
+router.get('/me/name', requireAuth, async (req, res) => {
+  try {
+    const userId = req.sessionData?.userData?.id;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID not found in session' });
+    }
+    const resp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/db/users/${userId}/name`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager: require('../utils/session'),
+      authApiClient: require('../utils/authApiClient'),
+      res
+    });
+
+    // Если токены обновились, возвращаем их в ответ для возможной синхронизации
+    if (resp?.newTokens) {
+      res.set('x-new-access-token', resp.newTokens.accessToken);
+      res.set('x-new-refresh-token', resp.newTokens.refreshToken);
+    }
+
+    return res.json(resp?.data || {});
+  } catch (error) {
+    console.error('[API] /me/name error:', error.message || error);
+    res.status(error.status || 500).json({ error: error.message || 'Failed to fetch user name' });
+  }
+});
+
+router.get('/session-tokens', (req, res) => {
+  console.log('[API] /session-tokens called, userStatus:', req.userStatus, 'sessionData.accessToken present:', !!req.sessionData?.accessToken);
+  const accessToken = req.sessionData?.accessToken;
+  const refreshToken = req.sessionData?.refreshToken;
+  if (!accessToken || !refreshToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.json({ accessToken, refreshToken });
+});
+
+// Текущий пользователь из сессии (+ опционально имя из main)
+router.get('/me', requireAuth, async (req, res) => {
+  const user = req.sessionData?.userData;
+  if (!user) {
+    return res.status(404).json({ error: 'User not found in session' });
+  }
+
+  const response = {
+    user,
+    tokens: {
+      accessToken: req.sessionData?.accessToken,
+      refreshToken: req.sessionData?.refreshToken
+    }
+  };
+
+  // Если передан ?main=1 и есть user.id, подтягиваем имя из main
+  if (req.query?.main === '1' && user.id && req.sessionData?.accessToken) {
+    try {
+      const sessionManager = require('../utils/session');
+      const authApiClient = require('../utils/authApiClient');
+      const mainResp = await mainApiClient.requestWithRefresh({
+        endpoint: `/api/db/users/${user.id}/name`,
+        method: 'get',
+        sessionToken: req.sessionToken,
+        sessionData: req.sessionData,
+        sessionManager,
+        authApiClient,
+        res
+      });
+      response.main = mainResp?.data || null;
+      if (mainResp?.newTokens) {
+        response.tokens.accessToken = mainResp.newTokens.accessToken;
+        response.tokens.refreshToken = mainResp.newTokens.refreshToken;
+      }
+    } catch (error) {
+      response.mainError = error.message || 'Failed to fetch main profile';
+    }
+  }
+
+  res.json(response);
+});
+
 // Маршрут для проверки здоровья
 router.get('/health', (req, res) => {
+  console.log('[API] /health called');
   res.json({
     status: 'ok',
     service: 'web-backend-api',
@@ -227,6 +310,15 @@ router.post('/attempts/:id/finish', requireAuth, async (req, res) => {
 router.put('/attempts/:attemptId/answers/:answerId', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.updateAnswer(req.params.attemptId, req.params.answerId, req.body.option_id, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
+router.get('/attempts/:id/answers', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.getAttemptAnswers(req.params.id, getAccessToken(req));
     res.json(data);
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message, details: error.data });
@@ -468,7 +560,7 @@ router.put('/users/:id/block', requireAuth, async (req, res) => {
 
 // ========== УВЕДОМЛЕНИЯ (NOTIFICATIONS) ==========
 
-router.get('/notifications', requireAuth, async (req, res) => {
+router.get('/notification', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.getNotifications(getAccessToken(req));
     res.json(data);
@@ -477,7 +569,7 @@ router.get('/notifications', requireAuth, async (req, res) => {
   }
 });
 
-router.delete('/notifications', requireAuth, async (req, res) => {
+router.delete('/notification', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.clearNotifications(getAccessToken(req));
     res.json(data);
