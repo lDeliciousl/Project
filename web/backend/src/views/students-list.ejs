@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Студенты - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: 600; }
+        .search-box { margin-bottom: 20px; }
+        .search-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .search-input:focus { outline: none; border-color: #667eea; }
+        .students-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .student-card { background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e2e8f0; }
+        .student-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .student-avatar { width: 50px; height: 50px; border-radius: 50%; background: #667eea; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; }
+        .student-info h3 { font-size: 16px; margin-bottom: 5px; }
+        .student-info p { font-size: 14px; color: #718096; }
+        .courses-list { margin: 15px 0; }
+        .course-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: white; border-radius: 6px; margin-bottom: 8px; }
+        .course-name { font-size: 14px; font-weight: 500; }
+        .course-stats { font-size: 12px; color: #718096; }
+        .student-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-danger:hover { background: #c53030; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-left: 8px; }
+        .status-banned { background: #fed7d7; color: #c53030; }
+        .status-active { background: #c6f6d5; color: #22543d; }
+        .ban-controls { display: flex; align-items: center; gap: 8px; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-item { text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .summary-value { font-size: 24px; font-weight: bold; color: #667eea; }
+        .summary-label { font-size: 12px; color: #718096; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / Студенты
+        </div>
+
+        <h1 class="page-title">Все студенты</h1>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <!-- Общая статистика -->
+        <div class="stats-summary">
+            <div class="summary-item">
+                <div class="summary-value"><%= totalStudents %></div>
+                <div class="summary-label">Всего студентов</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value"><%= totalCourses %></div>
+                <div class="summary-label">Курсов</div>
+            </div>
+            <div class="summary-item">
+                <div class="summary-value"><%= activeStudents %></div>
+                <div class="summary-label">Активных</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="section-header">
+                <h2 class="section-title">Список студентов (<%= students.length %>)</h2>
+            </div>
+
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="Поиск по имени, email или курсу..." oninput="filterStudents(this.value)">
+            </div>
+
+            <div class="students-grid" id="studentsGrid">
+                <% if (students && students.length > 0) { %>
+                    <% students.forEach(student => { %>
+                        <div class="student-card" 
+                             data-name="<%= (student.name || '').toLowerCase() %>" 
+                             data-email="<%= (student.email || '').toLowerCase() %>"
+                             data-courses="<%= (student.courses || []).map(c => c.name).join(' ').toLowerCase() %>">
+                            <div class="student-header">
+                                <div class="student-avatar">
+                                    <%= (student.name || student.email || 'S').charAt(0).toUpperCase() %>
+                                </div>
+                                <div class="student-info">
+                                <h3>
+                                    <%= student.name || student.email || 'Студент' %>
+                                    <span class="status-badge <%= student.is_blocked ? 'status-banned' : 'status-active' %>" id="status-<%= student.id %>">
+                                        <%= student.is_blocked ? 'Заблокирован' : 'Активен' %>
+                                    </span>
+                                </h3>
+                                <p><%= student.email || 'Нет email' %></p>
+                            </div>
+                            </div>
+                            
+                            <div class="student-info">
+                                <p style="color: #718096; font-size: 14px;">ID: <%= student.id %></p>
+                                <% if (student.roles && student.roles !== '[]') { %>
+                                    <p style="color: #718096; font-size: 12px;">Роли: <%= student.roles %></p>
+                                <% } %>
+                            </div>
+                            
+                            <div class="student-actions">
+                                <div class="ban-controls">
+                                    <% if (student.is_blocked) { %>
+                                        <button class="btn btn-success btn-sm" onclick="toggleUserBan('<%= student.id %>', false)">
+                                            ✅ Разблокировать
+                                        </button>
+                                    <% } else { %>
+                                        <button class="btn btn-danger btn-sm" onclick="toggleUserBan('<%= student.id %>', true)">
+                                            🚫 Заблокировать
+                                        </button>
+                                    <% } %>
+                                </div>
+                                <a href="/teacher/student/<%= student.id %>/results" class="btn btn-outline btn-sm">📊 Результаты</a>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <h3>Студенты не найдены</h3>
+                        <p>На ваших курсах пока нет студентов</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Функция для управления баном пользователя
+        async function toggleUserBan(userId, shouldBan) {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                alert('Ошибка: отсутствует токен авторизации');
+                return;
+            }
+
+            const action = shouldBan ? 'блокировки' : 'разблокировки';
+            if (!confirm(`Вы уверены, что хотите ${action} этого пользователя?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}/block`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ is_blocked: shouldBan })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP ${response.status}`);
+                }
+
+                // Обновляем UI
+                updateUserStatus(userId, shouldBan);
+                
+                // Показываем уведомление
+                showNotification(`Пользователь успешно ${shouldBan ? 'заблокирован' : 'разблокирован'}`, 'success');
+                
+                console.log(`[BAN] Пользователь ${userId} ${shouldBan ? 'заблокирован' : 'разблокирован'}`);
+                
+            } catch (error) {
+                console.error('[BAN] Ошибка:', error);
+                showNotification(`Ошибка: ${error.message}`, 'error');
+            }
+        }
+
+        // Обновление статуса пользователя в UI
+        function updateUserStatus(userId, isBlocked) {
+            const statusBadge = document.getElementById(`status-${userId}`);
+            if (statusBadge) {
+                statusBadge.className = `status-badge ${isBlocked ? 'status-banned' : 'status-active'}`;
+                statusBadge.textContent = isBlocked ? 'Заблокирован' : 'Активен';
+            }
+
+            // Находим карточку студента и обновляем кнопку
+            const studentCards = document.querySelectorAll('.student-card');
+            studentCards.forEach(card => {
+                const actionsDiv = card.querySelector('.student-actions');
+                if (card.innerHTML.includes(userId)) {
+                    const banControls = actionsDiv.querySelector('.ban-controls');
+                    if (banControls) {
+                        banControls.innerHTML = isBlocked ? 
+                            `<button class="btn btn-success btn-sm" onclick="toggleUserBan('${userId}', false)">✅ Разблокировать</button>` :
+                            `<button class="btn btn-danger btn-sm" onclick="toggleUserBan('${userId}', true)">🚫 Заблокировать</button>`;
+                    }
+                }
+            });
+        }
+
+        // Показ уведомлений
+        function showNotification(message, type) {
+            // Создаем элемент уведомления
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'error' : 'success'}`;
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.zIndex = '9999';
+            notification.style.maxWidth = '300px';
+
+            document.body.appendChild(notification);
+
+            // Удаляем через 3 секунды
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        function filterStudents(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.student-card').forEach(card => {
+                const name = card.getAttribute('data-name') || '';
+                const email = card.getAttribute('data-email') || '';
+                const courses = card.getAttribute('data-courses') || '';
+                const matches = name.includes(q) || email.includes(q) || courses.includes(q);
+                card.style.display = matches ? 'block' : 'none';
+            });
+        }
+
+        async function unenrollFromAll(studentId) {
+            if (!confirm('Отчислить студента со всех курсов?')) return;
+            
+            try {
+                // Здесь можно добавить API для отчисления со всех курсов
+                alert('Функция отчисления со всех курсов будет добавлена позже');
+            } catch (err) {
+                alert('Ошибка: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

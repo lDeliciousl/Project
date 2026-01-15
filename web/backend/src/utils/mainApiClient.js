@@ -52,32 +52,62 @@ class MainApiClient {
       // Если 401 и есть refresh token - пробуем обновить
       if (error.status === 401 && refreshToken && authApiClient && sessionManager && sessionToken) {
         console.log('[MainApiClient] Получен 401, пробуем refresh токенов...');
-        
+
+        // Anti-race: возможно другой запрос/инстанс уже обновил токены в Redis.
+        // Перечитываем актуальную сессию и если токены уже другие — просто повторяем запрос.
         try {
-          const refreshResult = await authApiClient.refreshTokens(refreshToken);
-          
-          if (refreshResult && refreshResult.access_token && refreshResult.refresh_token) {
-            // Обновляем токены в Redis
-            await sessionManager.updateSession(sessionToken, {
-              accessToken: refreshResult.access_token,
-              refreshToken: refreshResult.refresh_token,
-              updatedAt: new Date().toISOString()
-            });
-            
-            console.log('[MainApiClient] Токены обновлены, повторяем запрос...');
-            
-            // Повторяем запрос с новым access token
-            const retryResult = await this.request(endpoint, method, data, refreshResult.access_token);
-            return { 
-              data: retryResult, 
-              newTokens: { 
-                accessToken: refreshResult.access_token, 
-                refreshToken: refreshResult.refresh_token 
-              } 
+          const latestSession = await sessionManager.getSession(sessionToken);
+          const latestAccessToken = latestSession?.accessToken;
+          const latestRefreshToken = latestSession?.refreshToken;
+          const latestUpdatedAt = latestSession?.updatedAt;
+
+          // Проверяем по timestamp и по токенам
+          if (latestAccessToken && latestRefreshToken && 
+              (latestRefreshToken !== refreshToken || 
+               (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
+            console.log('[MainApiClient] Токены уже обновлены в Redis, повторяем запрос без refresh...');
+            const retryResult = await this.request(endpoint, method, data, latestAccessToken);
+            return {
+              data: retryResult,
+              newTokens: {
+                accessToken: latestAccessToken,
+                refreshToken: latestRefreshToken
+              }
             };
           }
+        } catch (e) {
+          // игнорируем - продолжаем обычный refresh
+        }
+        
+        let refreshResult;
+        try {
+          refreshResult = await authApiClient.refreshTokens(refreshToken);
         } catch (refreshError) {
           console.error('[MainApiClient] Ошибка при refresh токенов:', refreshError.message || refreshError);
+
+          // Anti-race: если refresh упал, возможно другой запрос уже успел обновить токены.
+          try {
+            const latestSession = await sessionManager.getSession(sessionToken);
+            const latestAccessToken = latestSession?.accessToken;
+            const latestRefreshToken = latestSession?.refreshToken;
+            const latestUpdatedAt = latestSession?.updatedAt;
+
+            if (latestAccessToken && latestRefreshToken && 
+                (latestRefreshToken !== refreshToken || 
+                 (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
+              console.log('[MainApiClient] Refresh упал, но токены уже обновлены в Redis, повторяем запрос...');
+              const retryResult = await this.request(endpoint, method, data, latestAccessToken);
+              return {
+                data: retryResult,
+                newTokens: {
+                  accessToken: latestAccessToken,
+                  refreshToken: latestRefreshToken
+                }
+              };
+            }
+          } catch (e) {
+            // игнорируем - считаем refresh реально провалился
+          }
           
           // Refresh не удался - удаляем сессию и редиректим на главную
           if (sessionManager && sessionToken) {
@@ -91,6 +121,27 @@ class MainApiClient {
             status: 401,
             message: 'Session expired',
             sessionExpired: true
+          };
+        }
+
+        if (refreshResult && refreshResult.access_token && refreshResult.refresh_token) {
+          // Обновляем токены в Redis
+          await sessionManager.updateSession(sessionToken, {
+            accessToken: refreshResult.access_token,
+            refreshToken: refreshResult.refresh_token,
+            updatedAt: new Date().toISOString()
+          });
+
+          console.log('[MainApiClient] Токены обновлены, повторяем запрос...');
+
+          // Повторяем запрос с новым access token
+          const retryResult = await this.request(endpoint, method, data, refreshResult.access_token);
+          return {
+            data: retryResult,
+            newTokens: {
+              accessToken: refreshResult.access_token,
+              refreshToken: refreshResult.refresh_token
+            }
           };
         }
       }
@@ -203,6 +254,27 @@ class MainApiClient {
    */
   async removeQuestionFromTest(testId, questionId, accessToken) {
     return this.request(`/api/tests/${testId}/questions/${questionId}`, 'delete', null, accessToken);
+  }
+
+  /**
+   * Обновить порядок вопросов в тесте
+   */
+  async updateQuestionsOrder(testId, questionIds, accessToken) {
+    return this.request(`/api/tests/${testId}/questions/order`, 'put', { question_ids: questionIds }, accessToken);
+  }
+
+  /**
+   * Обновить тест
+   */
+  async updateTest(testId, testData, accessToken) {
+    return this.request(`/api/tests/${testId}`, 'put', testData, accessToken);
+  }
+
+  /**
+   * Удалить тест
+   */
+  async deleteTest(testId, accessToken) {
+    return this.request(`/api/tests/${testId}`, 'delete', null, accessToken);
   }
 
   /**
@@ -430,6 +502,20 @@ class MainApiClient {
    */
   async clearNotifications(accessToken) {
     return this.request('/notification', 'delete', null, accessToken);
+  }
+
+  /**
+   * Получить статус блокировки пользователя
+   */
+  async getUserBlockStatus(userId, accessToken) {
+    return this.request(`/users/${userId}/block`, 'get', null, accessToken);
+  }
+
+  /**
+   * Установить статус блокировки пользователя
+   */
+  async setUserBlockStatus(userId, isBlocked, accessToken) {
+    return this.request(`/users/${userId}/block`, 'put', { is_blocked: isBlocked }, accessToken);
   }
 
   // ========== Служебные методы ==========

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= question.id ? 'Редактирование' : 'Создание' %> вопроса</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
+        .form-input, .form-textarea { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: #667eea; }
+        .form-textarea { resize: vertical; min-height: 80px; }
+        .options-list { display: flex; flex-direction: column; gap: 10px; }
+        .option-row { display: flex; gap: 10px; align-items: center; }
+        .option-radio { width: 20px; height: 20px; accent-color: #48bb78; cursor: pointer; }
+        .option-input { flex: 1; }
+        .option-remove { background: #fed7d7; color: #c53030; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        .option-remove:hover { background: #fc8181; color: white; }
+        .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer; border: none; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-success:hover { background: #38a169; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; }
+        .hint { font-size: 12px; color: #718096; margin-top: 5px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .test-link { background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; }
+        .test-link a { color: #667eea; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <% if (typeof testId !== 'undefined' && testId) { %>
+                <a href="/teacher/test/<%= testId %>" class="nav-btn">← К тесту</a>
+            <% } else { %>
+                <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <% } %>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1 class="page-title"><%= question.id ? 'Редактирование вопроса' : 'Создание вопроса' %></h1>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <% if (typeof testId !== 'undefined' && testId) { %>
+            <div class="test-link">📝 Вопрос будет добавлен в тест</div>
+        <% } %>
+
+        <div class="card">
+            <form id="questionForm">
+                <div class="form-group">
+                    <label class="form-label">Название вопроса *</label>
+                    <input type="text" class="form-input" name="title" id="titleInput" value="<%= question.title || '' %>" required placeholder="Краткое название для идентификации">
+                    <div class="hint">Отображается в списках вопросов</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Текст вопроса *</label>
+                    <textarea class="form-textarea" name="text" id="textInput" required placeholder="Введите текст вопроса..."><%= question.text || '' %></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Варианты ответов *</label>
+                    <div class="options-list" id="optionsList">
+                        <% const opts = (question.options && question.options.length > 0) ? question.options : [{text:''},{text:''}]; %>
+                        <% opts.forEach((opt, idx) => { %>
+                            <div class="option-row">
+                                <input type="radio" name="correct" class="option-radio" value="<%= idx %>" <%= opt.is_correct ? 'checked' : (idx === 0 && !opts.some(o => o.is_correct) ? 'checked' : '') %> title="Правильный ответ">
+                                <input type="text" class="form-input option-input" value="<%= opt.text || '' %>" placeholder="Вариант ответа">
+                                <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
+                            </div>
+                        <% }); %>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" style="margin-top: 10px;" onclick="addOption()">+ Добавить вариант</button>
+                    <div class="hint">Выберите правильный ответ кружком слева</div>
+                </div>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-success"><%= question.id ? '💾 Сохранить' : '✓ Создать' %></button>
+                    <% if (question.id) { %>
+                        <button type="button" class="btn btn-danger" onclick="deleteQuestion()">Удалить</button>
+                    <% } %>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const questionId = '<%= question.id || "" %>';
+        const testId = '<%= typeof testId !== "undefined" ? testId : "" %>';
+        
+        function addOption() {
+            const list = document.getElementById('optionsList');
+            const count = list.querySelectorAll('.option-row').length;
+            const row = document.createElement('div');
+            row.className = 'option-row';
+            row.innerHTML = `
+                <input type="radio" name="correct" class="option-radio" value="${count}" title="Правильный ответ">
+                <input type="text" class="form-input option-input" placeholder="Вариант ответа">
+                <button type="button" class="option-remove" onclick="removeOption(this)">×</button>
+            `;
+            list.appendChild(row);
+            updateRadioValues();
+        }
+        
+        function removeOption(btn) {
+            const list = document.getElementById('optionsList');
+            if (list.querySelectorAll('.option-row').length > 2) {
+                btn.closest('.option-row').remove();
+                updateRadioValues();
+            } else {
+                alert('Минимум 2 варианта ответа');
+            }
+        }
+        
+        function updateRadioValues() {
+            const rows = document.querySelectorAll('.option-row');
+            rows.forEach((row, idx) => {
+                row.querySelector('.option-radio').value = idx;
+            });
+        }
+        
+        document.getElementById('questionForm').onsubmit = async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('titleInput').value.trim();
+            const text = document.getElementById('textInput').value.trim();
+            
+            if (!title) {
+                alert('Введите название вопроса');
+                document.getElementById('titleInput').focus();
+                return;
+            }
+            
+            if (!text) {
+                alert('Введите текст вопроса');
+                document.getElementById('textInput').focus();
+                return;
+            }
+            
+            const correctRadio = document.querySelector('input[name="correct"]:checked');
+            const correctIdx = correctRadio ? parseInt(correctRadio.value) : 0;
+            
+            const options = [];
+            document.querySelectorAll('.option-input').forEach((input, idx) => {
+                const optText = input.value.trim();
+                if (optText) {
+                    options.push({ text: optText, is_correct: idx === correctIdx });
+                }
+            });
+            
+            if (options.length < 2) {
+                alert('Минимум 2 варианта ответа');
+                return;
+            }
+            
+            const data = { title, text, options };
+            
+            try {
+                let url, method;
+                if (questionId) {
+                    url = '/api/questions/' + questionId;
+                    method = 'PUT';
+                } else if (testId) {
+                    url = '/api/tests/' + testId + '/questions';
+                    method = 'POST';
+                } else {
+                    url = '/api/questions';
+                    method = 'POST';
+                }
+                
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (res.ok) {
+                    if (testId) {
+                        window.location.href = '/teacher/test/' + testId;
+                    } else if (questionId) {
+                        alert('Вопрос сохранён');
+                        window.location.reload();
+                    } else {
+                        const result = await res.json();
+                        window.location.href = '/teacher/question/' + result.id;
+                    }
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось сохранить'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        };
+        
+        async function deleteQuestion() {
+            if (!confirm('Удалить вопрос?')) return;
+            try {
+                const res = await fetch('/api/questions/' + questionId, { method: 'DELETE' });
+                if (res.ok) {
+                    window.location.href = '/teacher/questions';
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось удалить'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

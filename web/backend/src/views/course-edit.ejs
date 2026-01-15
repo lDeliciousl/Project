@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактирование: <%= course.name %> - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 80px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon { font-size: 28px; }
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+        .nav-btn {
+            padding: 8px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .nav-btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        .nav-btn-secondary:hover { background: #cbd5e0; }
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .logout-btn:hover { background: #ff3742; }
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .breadcrumb {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 20px;
+        }
+        .breadcrumb a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .page-title {
+            font-size: 28px;
+            color: #333;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-success:hover { background: #38a169; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-danger:hover { background: #e53e3e; }
+        .btn-warning { background: #ed8936; color: white; }
+        .btn-warning:hover { background: #dd6b20; }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #667eea;
+            color: #667eea;
+        }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .section-title {
+            font-size: 20px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-textarea { resize: vertical; min-height: 100px; }
+        .test-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .test-card {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s;
+        }
+        .test-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 3px 10px rgba(102, 126, 234, 0.1);
+        }
+        .test-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .test-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        .test-meta {
+            font-size: 13px;
+            color: #718096;
+            margin-top: 5px;
+        }
+        .test-status {
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .status-active { background: #c6f6d5; color: #22543d; }
+        .status-inactive { background: #fed7d7; color: #742a2a; }
+        .test-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e0;
+            transition: .3s;
+            border-radius: 26px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .toggle-slider { background-color: #48bb78; }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .student-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .student-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .student-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .student-avatar {
+            width: 36px;
+            height: 36px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .student-name { font-weight: 500; }
+        .student-email { font-size: 12px; color: #718096; }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-title { font-size: 20px; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #718096;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .danger-zone {
+            border: 2px solid #fed7d7;
+            background: #fff5f5;
+        }
+        .danger-zone .section-title { color: #c53030; }
+        @media (max-width: 900px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .header { padding: 15px 20px; }
+            .page-header { flex-direction: column; gap: 15px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">
+            <span class="logo-icon">📚</span>
+            <span>Система тестирования</span>
+        </a>
+        <div class="nav-links">
+            <a href="/teacher" class="nav-btn nav-btn-secondary">← Панель преподавателя</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / <%= course.name %>
+        </div>
+
+        <% if (typeof message !== 'undefined' && message) { %>
+            <div class="alert alert-success"><%= message %></div>
+        <% } %>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <div class="page-header">
+            <h1 class="page-title">Редактирование курса</h1>
+            <a href="/course/<%= course.id %>" class="btn btn-outline">👁 Предпросмотр</a>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <!-- Course Info Section -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Информация о курсе</h2>
+                    </div>
+                    <form id="courseInfoForm" onsubmit="updateCourseInfo(event)">
+                        <div class="form-group">
+                            <label class="form-label">Название курса *</label>
+                            <input type="text" class="form-input" name="name" value="<%= course.name %>" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Описание</label>
+                            <textarea class="form-textarea" name="description"><%= course.description || '' %></textarea>
+                        </div>
+                        <div class="form-actions" style="justify-content: flex-start;">
+                            <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Students Section -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Студенты (<%= students ? students.length : 0 %>)</h2>
+                        <button class="btn btn-success btn-sm" onclick="openAddStudentModal()">+ Добавить студента</button>
+                    </div>
+                    <% if (students && students.length > 0) { %>
+                        <div class="student-list">
+                            <% students.forEach(student => { %>
+                                <div class="student-item">
+                                    <div class="student-info">
+                                        <div class="student-avatar">
+                                            <%= student.name ? student.name.charAt(0).toUpperCase() : 'С' %>
+                                        </div>
+                                        <div>
+                                            <div class="student-name"><%= student.name || 'Студент' %></div>
+                                            <div class="student-email"><%= student.email || '' %></div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-danger btn-sm" onclick="removeStudent('<%= student.id %>')">Удалить</button>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } else { %>
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👥</div>
+                            <p>На курс пока никто не записан</p>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+
+            <div>
+                <!-- Tests Section -->
+                <div class="section">
+                    <div class="section-header">
+                        <h2 class="section-title">Тесты (<%= tests ? tests.length : 0 %>)</h2>
+                        <button class="btn btn-success btn-sm" onclick="openAddTestModal()">+ Добавить тест</button>
+                    </div>
+                    <% if (tests && tests.length > 0) { %>
+                        <div class="test-list">
+                            <% tests.forEach(test => { %>
+                                <div class="test-card">
+                                    <div class="test-header">
+                                        <div>
+                                            <div class="test-title"><%= test.name %></div>
+                                            <div class="test-meta">
+                                                📝 <%= test.questions_count || 0 %> вопросов
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <span class="test-status <%= test.is_active ? 'status-active' : 'status-inactive' %>">
+                                                <%= test.is_active ? 'Активен' : 'Неактивен' %>
+                                            </span>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" <%= test.is_active ? 'checked' : '' %> onchange="toggleTestActive('<%= test.id %>', this.checked)">
+                                                <span class="toggle-slider"></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="test-actions">
+                                        <a href="/teacher/test/<%= test.id %>" class="btn btn-primary btn-sm">Редактировать</a>
+                                        <a href="/test/<%= test.id %>" class="btn btn-outline btn-sm">Просмотр</a>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteTest('<%= test.id %>')">Удалить</button>
+                                    </div>
+                                </div>
+                            <% }); %>
+                        </div>
+                    <% } else { %>
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📝</div>
+                            <p>В курсе пока нет тестов</p>
+                            <p style="margin-top: 10px; font-size: 14px;">Добавьте первый тест</p>
+                        </div>
+                    <% } %>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="section danger-zone">
+                    <div class="section-header">
+                        <h2 class="section-title">⚠️ Опасная зона</h2>
+                    </div>
+                    <p style="margin-bottom: 15px; color: #718096;">Удаление курса нельзя отменить. Все тесты и результаты будут также удалены.</p>
+                    <button class="btn btn-danger" onclick="deleteCourse()">Удалить курс</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Add Test -->
+    <div class="modal-overlay" id="addTestModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Добавить тест</h3>
+                <button class="modal-close" onclick="closeModal('addTestModal')">&times;</button>
+            </div>
+            <form id="addTestForm" onsubmit="addTest(event)">
+                <div class="form-group">
+                    <label class="form-label">Название теста *</label>
+                    <input type="text" class="form-input" name="name" required placeholder="Введите название теста">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Описание</label>
+                    <textarea class="form-textarea" name="description" placeholder="Описание теста..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addTestModal')">Отмена</button>
+                    <button type="submit" class="btn btn-success">Добавить тест</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Add Student -->
+    <div class="modal-overlay" id="addStudentModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Добавить студента</h3>
+                <button class="modal-close" onclick="closeModal('addStudentModal')">&times;</button>
+            </div>
+            <form id="addStudentForm" onsubmit="addStudent(event)">
+                <div class="form-group">
+                    <label class="form-label">ID или Email студента *</label>
+                    <input type="text" class="form-input" name="user_id" required placeholder="Введите ID или email">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addStudentModal')">Отмена</button>
+                    <button type="submit" class="btn btn-success">Записать на курс</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const courseId = '<%= course.id %>';
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openAddTestModal() {
+            document.getElementById('addTestModal').classList.add('active');
+        }
+
+        function openAddStudentModal() {
+            document.getElementById('addStudentModal').classList.add('active');
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.classList.remove('active');
+            });
+        });
+
+        async function updateCourseInfo(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                name: form.name.value,
+                description: form.description.value
+            };
+
+            try {
+                const response = await fetch('/api/courses/' + courseId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    alert('Курс успешно обновлён');
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось обновить курс'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function addTest(e) {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                name: form.name.value,
+                description: form.description.value,
+                course_id: courseId
+            };
+
+            try {
+                const response = await fetch('/api/tests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    window.location.href = '/teacher/test/' + result.id;
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось создать тест'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function toggleTestActive(testId, isActive) {
+            try {
+                const response = await fetch('/api/tests/' + testId + '/activate', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось изменить статус теста'));
+                    window.location.reload();
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+                window.location.reload();
+            }
+        }
+
+        async function deleteTest(testId) {
+            if (!confirm('Удалить этот тест? Это действие нельзя отменить.')) return;
+
+            try {
+                const response = await fetch('/api/tests/' + testId, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось удалить тест'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function addStudent(e) {
+            e.preventDefault();
+            const form = e.target;
+
+            try {
+                const response = await fetch('/api/courses/' + courseId + '/enroll', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: form.user_id.value })
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось записать студента'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function removeStudent(userId) {
+            if (!confirm('Удалить студента с курса?')) return;
+
+            try {
+                const response = await fetch('/api/courses/' + courseId + '/enroll/' + userId, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось удалить студента'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function deleteCourse() {
+            if (!confirm('ВНИМАНИЕ! Вы уверены, что хотите удалить этот курс? Все тесты и результаты будут удалены. Это действие НЕЛЬЗЯ отменить!')) return;
+            if (!confirm('Подтвердите удаление курса ещё раз.')) return;
+
+            try {
+                const response = await fetch('/api/courses/' + courseId, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    window.location.href = '/teacher';
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка: ' + (error.error || 'Не удалось удалить курс'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

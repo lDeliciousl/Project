@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты студента - <%= student.name || student.email %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: 600; }
+        .student-header { display: flex; align-items: center; gap: 20px; margin-bottom: 30px; }
+        .student-avatar { width: 80px; height: 80px; border-radius: 50%; background: #667eea; color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: bold; }
+        .student-info h2 { font-size: 24px; margin-bottom: 5px; }
+        .student-info p { font-size: 16px; color: #718096; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: #f8f9fa; border-radius: 8px; padding: 20px; text-align: center; border: 1px solid #e2e8f0; }
+        .stat-value { font-size: 32px; font-weight: bold; color: #667eea; margin-bottom: 5px; }
+        .stat-label { font-size: 14px; color: #718096; }
+        .test-results { display: grid; gap: 20px; }
+        .test-card { background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e2e8f0; }
+        .test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .test-title { font-size: 18px; font-weight: 600; }
+        .test-date { font-size: 14px; color: #718096; }
+        .test-score { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .score-bar { flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .score-fill { height: 100%; background: #48bb78; transition: width 0.3s; }
+        .score-text { font-size: 16px; font-weight: bold; min-width: 60px; text-align: right; }
+        .score-fill.low { background: #f56565; }
+        .score-fill.medium { background: #ed8936; }
+        .score-fill.high { background: #48bb78; }
+        .test-actions { display: flex; gap: 10px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a67d8; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .filter-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .filter-tab { padding: 8px 16px; border-radius: 6px; cursor: pointer; background: #e2e8f0; color: #4a5568; }
+        .filter-tab.active { background: #667eea; color: white; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <% if (course && course.id) { %>
+                <a href="/teacher/course/<%= course.id %>" class="nav-btn">← К курсу</a>
+                <a href="/teacher/course/<%= course.id %>/students" class="nav-btn">← Студенты</a>
+            <% } %>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/teacher">Панель преподавателя</a> / 
+            <% if (course && course.id) { %>
+                <a href="/teacher/course/<%= course.id %>"><%= course.name %></a> / 
+                <a href="/teacher/course/<%= course.id %>/students">Студенты</a> / 
+            <% } else { %>
+                <a href="/teacher/students">Студенты</a> / 
+            <% } %>
+            <%= student.name || student.email %>
+        </div>
+
+        <h1 class="page-title">Результаты студента</h1>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-error"><%= error %></div>
+        <% } %>
+
+        <!-- Информация о студенте -->
+        <div class="card">
+            <div class="student-header">
+                <div class="student-avatar">
+                    <%= (student.name || student.email || 'S').charAt(0).toUpperCase() %>
+                </div>
+                <div class="student-info">
+                    <h2><%= student.name || student.email || 'Студент' %></h2>
+                    <p><%= student.email || 'Нет email' %></p>
+                </div>
+            </div>
+
+            <!-- Общая статистика -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTests">0</div>
+                    <div class="stat-label">Всего тестов</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="completedTests">0</div>
+                    <div class="stat-label">Завершено</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgScore">0%</div>
+                    <div class="stat-label">Средний балл</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="bestScore">0%</div>
+                    <div class="stat-label">Лучший результат</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Результаты тестов -->
+        <div class="card">
+            <div class="section-header">
+                <h2 class="section-title">Результаты по тестам</h2>
+                <div class="filter-tabs">
+                    <div class="filter-tab active" onclick="filterTests('all', this)">Все</div>
+                    <div class="filter-tab" onclick="filterTests('completed', this)">Завершенные</div>
+                    <div class="filter-tab" onclick="filterTests('incomplete', this)">Незавершенные</div>
+                </div>
+            </div>
+
+            <div class="test-results" id="testResults">
+                <% if (testResults && testResults.length > 0) { %>
+                    <% testResults.forEach(test => { %>
+                        <div class="test-card" data-status="<%= test.completed ? 'completed' : 'incomplete' %>">
+                            <div class="test-header">
+                                <div class="test-title"><%= test.name %></div>
+                                <div class="test-date">
+                                    <% if (test.finished_at) { %>
+                                        <%= new Date(test.finished_at).toLocaleDateString('ru-RU') %>
+                                    <% } else { %>
+                                        Не завершен
+                                    <% } %>
+                                </div>
+                            </div>
+                            
+                            <div class="test-score">
+                                <div class="score-bar">
+                                    <% const score = test.completed ? Math.round((test.score / test.max_score) * 100) : 0; %>
+                                    <% const scoreClass = score >= 80 ? 'high' : score >= 60 ? 'medium' : 'low'; %>
+                                    <div class="score-fill <%= scoreClass %>" style="width: <%= score %>%"></div>
+                                </div>
+                                <div class="score-text">
+                                    <% if (test.completed) { %>
+                                        <%= test.score %>/<%= test.max_score %> (<%= score %>%)
+                                    <% } else { %>
+                                        —
+                                    <% } %>
+                                </div>
+                            </div>
+                            
+                            <div class="test-actions">
+                                <% if (test.completed) { %>
+                                    <a href="/teacher/test/<%= test.id %>/student/<%= student.id %>/answers" class="btn btn-outline btn-sm">📋 Ответы</a>
+                                <% } else { %>
+                                    <span style="color: #718096; font-size: 14px;">Тест не завершен</span>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                <% } else { %>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📊</div>
+                        <h3>Нет результатов тестов</h3>
+                        <p>Студент ещё не проходил тесты этого курса</p>
+                    </div>
+                <% } %>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function filterTests(status, element) {
+            // Обновляем активную вкладку
+            document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Фильтруем тесты
+            document.querySelectorAll('.test-card').forEach(card => {
+                if (status === 'all') {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = card.getAttribute('data-status') === status ? 'block' : 'none';
+                }
+            });
+        }
+
+        // Обновляем статистику при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            const tests = <%- JSON.stringify(testResults || []) %>;
+            
+            const totalTests = tests.length;
+            const completedTests = tests.filter(t => t.completed).length;
+            const scores = tests.filter(t => t.completed).map(t => (t.score / t.max_score) * 100);
+            const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+            const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
+            
+            document.getElementById('totalTests').textContent = totalTests;
+            document.getElementById('completedTests').textContent = completedTests;
+            document.getElementById('avgScore').textContent = Math.round(avgScore) + '%';
+            document.getElementById('bestScore').textContent = Math.round(bestScore) + '%';
+        });
+    </script>
+</body>
+</html>

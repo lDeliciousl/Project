@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 80px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon {
+            font-size: 28px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #667eea;
+        }
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        .user-name {
+            font-weight: 600;
+            font-size: 14px;
+            text-align: right;
+        }
+        .user-email {
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        .logout-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        .confirm-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        .confirm-btn:hover {
+            background: #5a6fe0;
+        }
+        .logout-btn:hover {
+            background: #ff3742;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .page-header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .page-title {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .page-subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .section-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-icon {
+            font-size: 24px;
+        }
+        .courses-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+        }
+        .course-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .course-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15);
+            border-color: #667eea;
+        }
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        .course-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            flex: 1;
+        }
+        .course-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-enrolled {
+            background: #cce5ff;
+            color: #004085;
+        }
+        .course-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .course-meta {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #888;
+        }
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .course-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a6fe0;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        .btn-outline {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        .empty-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .empty-text {
+            color: #666;
+            font-size: 16px;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c3e6cb;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+        /* Мобильная адаптация */
+        @media (max-width: 768px) {
+            .header {
+                padding: 15px 20px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .logo {
+                font-size: 20px;
+            }
+            .user-details {
+                display: none;
+            }
+            .courses-grid {
+                grid-template-columns: 1fr;
+            }
+            .course-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .course-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">📚</span>
+            <span>Система тестирования</span>
+        </div>
+        <div class="user-info">
+            <div class="avatar">
+                <%= user.avatarLetter || user.name.charAt(0).toUpperCase() %>
+            </div>
+            <div class="user-details">
+                <div class="user-name"><strong><%= user.name %></strong></div>
+                <div class="user-email"><%= user.email %></div>
+            </div>
+            <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">📝 Панель преподавателя</a>
+            <% } %>
+            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">📖 Дисциплины</a>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">👤 Профиль</a>
+            <a href="/auth/confirm" class="confirm-btn">Подтвердить вход</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">📖 Дисциплины</h1>
+            <p class="page-subtitle">Изучайте доступные курсы и записывайтесь на интересные вам дисциплины</p>
+        </div>
+        
+        <% if (typeof message !== 'undefined') { %>
+            <% if (message.type === 'success') { %>
+                <div class="success-message">
+                    <%= message.text %>
+                </div>
+            <% } else if (message.type === 'error') { %>
+                <div class="error-message">
+                    <%= message.text %>
+                </div>
+            <% } %>
+        <% } %>
+        
+        <!-- Доступные для записи курсы -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="section-icon">🎯</span>
+                Доступные для записи
+            </h2>
+            
+            <% if (availableCourses && availableCourses.length > 0) { %>
+                <div class="courses-grid">
+                    <% availableCourses.forEach(course => { %>
+                        <div class="course-card">
+                            <div class="course-header">
+                                <div>
+                                    <div class="course-title"><%= course.name %></div>
+                                </div>
+                                <div class="course-status status-active">
+                                    Активна
+                                </div>
+                            </div>
+                            
+                            <div class="course-description">
+                                <%= course.description || 'Нет описания курса' %>
+                            </div>
+                            
+                            <div class="course-meta">
+                                <div class="meta-item">
+                                    <span>📚</span>
+                                    <span>Курс</span>
+                                </div>
+                                <% if (course.tests_count !== undefined) { %>
+                                    <div class="meta-item">
+                                        <span>📝</span>
+                                        <span><%= course.tests_count %> тестов</span>
+                                    </div>
+                                <% } %>
+                            </div>
+                            
+                            <div class="course-actions">
+                                <form method="POST" action="/api/courses/<%= course.id %>/enroll" style="display: inline;">
+                                    <input type="hidden" name="user_id" value="<%= user.id %>">
+                                    <button type="submit" class="btn btn-primary">
+                                        <span>✓</span>
+                                        Записаться
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } else { %>
+                <div class="empty-state">
+                    <div class="empty-icon">📭</div>
+                    <div class="empty-title">Нет доступных курсов</div>
+                    <div class="empty-text">В настоящее время нет курсов, доступных для записи</div>
+                </div>
+            <% } %>
+        </div>
+        
+        <!-- Курсы, на которые записан пользователь -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="section-icon">✅</span>
+                Мои дисциплины
+            </h2>
+            
+            <% if (enrolledCourses && enrolledCourses.length > 0) { %>
+                <div class="courses-grid">
+                    <% enrolledCourses.forEach(course => { %>
+                        <div class="course-card">
+                            <div class="course-header">
+                                <div>
+                                    <div class="course-title"><%= course.name %></div>
+                                </div>
+                                <div class="course-status status-enrolled">
+                                    Записан
+                                </div>
+                            </div>
+                            
+                            <div class="course-description">
+                                <%= course.description || 'Нет описания курса' %>
+                            </div>
+                            
+                            <div class="course-meta">
+                                <div class="meta-item">
+                                    <span>📚</span>
+                                    <span>Курс</span>
+                                </div>
+                                <% if (course.tests_count !== undefined) { %>
+                                    <div class="meta-item">
+                                        <span>📝</span>
+                                        <span><%= course.tests_count %> тестов</span>
+                                    </div>
+                                <% } %>
+                                <% if (course.progress !== undefined) { %>
+                                    <div class="meta-item">
+                                        <span>📊</span>
+                                        <span>Прогресс: <%= course.progress %>%</span>
+                                    </div>
+                                <% } %>
+                            </div>
+                            
+                            <div class="course-actions">
+                                <a href="/course/<%= course.id %>" class="btn btn-secondary">
+                                    <span>📖</span>
+                                    Перейти к курсу
+                                </a>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } else { %>
+                <div class="empty-state">
+                    <div class="empty-icon">📚</div>
+                    <div class="empty-title">Вы еще не записаны на курсы</div>
+                    <div class="empty-text">Запишитесь на доступные курсы, чтобы начать обучение</div>
+                </div>
+            <% } %>
+        </div>
+    </div>
+    
+    <script>
+        // Обработка форм записи на курсы
+        document.querySelectorAll('form[action*="/enroll"]').forEach(form => {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                
+                // Показываем загрузку
+                submitBtn.innerHTML = '<span>⏳</span> Загрузка...';
+                submitBtn.disabled = true;
+                
+                try {
+                    const formData = new FormData(this);
+                    const response = await fetch(this.action, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        // Перезагружаем страницу для обновления состояния
+                        window.location.reload();
+                    } else {
+                        const error = await response.json();
+                        alert('Ошибка при записи на курс: ' + (error.error || 'Попробуйте позже'));
+                    }
+                } catch (error) {
+                    alert('Ошибка сети: ' + error.message);
+                } finally {
+                    // Восстанавливаем кнопку
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

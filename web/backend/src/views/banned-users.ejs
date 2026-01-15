@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Заблокированные пользователи - Система тестирования</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; color: #e53e3e; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .section-title { font-size: 18px; font-weight: 600; }
+        .search-box { margin-bottom: 20px; }
+        .search-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+        .search-input:focus { outline: none; border-color: #667eea; }
+        .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+        .user-card { background: #fff5f5; border: 1px solid #fed7d7; border-radius: 8px; padding: 20px; }
+        .user-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .user-avatar { width: 50px; height: 50px; border-radius: 50%; background: #e53e3e; color: white; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: bold; }
+        .user-info h3 { font-size: 16px; margin-bottom: 5px; color: #e53e3e; }
+        .user-info p { font-size: 14px; color: #718096; }
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; background: #fed7d7; color: #c53030; }
+        .user-details { margin: 15px 0; }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #fed7d7; }
+        .detail-label { font-size: 12px; color: #718096; }
+        .detail-value { font-size: 12px; font-weight: 500; }
+        .user-actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border: none; }
+        .btn-success { background: #38a169; color: white; }
+        .btn-success:hover { background: #2f855a; }
+        .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
+        .btn-outline:hover { background: #667eea; color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 15px; }
+        .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+        .alert-error { background: #fed7d7; color: #742a2a; }
+        .alert-success { background: #c6f6d5; color: #22543d; }
+        .stats-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .summary-item { text-align: center; padding: 15px; background: #fff5f5; border-radius: 8px; border: 1px solid #fed7d7; }
+        .summary-value { font-size: 24px; font-weight: bold; color: #e53e3e; }
+        .summary-label { font-size: 12px; color: #718096; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/teacher" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <a href="/teacher" class="nav-btn">🏠 Панель преподавателя</a>
+            <a href="/teacher/students" class="nav-btn">👥 Все студенты</a>
+            <a href="/profile" class="nav-btn">👤 Профиль</a>
+            <a href="/logout" class="nav-btn" style="background: #ff4757; color: white;">🚪 Выйти</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/teacher">Панель преподавателя</a> / <span>Заблокированные пользователи</span>
+        </div>
+        
+        <h1 class="page-title">🚫 Заблокированные пользователи</h1>
+        
+        <div class="card">
+            <div class="section-header">
+                <div class="section-title">Список заблокированных пользователей</div>
+            </div>
+            
+            <div class="stats-summary">
+                <div class="summary-item">
+                    <div class="summary-value" id="bannedCount"><%= bannedUsers.length %></div>
+                    <div class="summary-label">Заблокировано</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="totalUsers"><%= totalUsers %></div>
+                    <div class="summary-label">Всего пользователей</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="banPercentage"><%= totalUsers > 0 ? Math.round((bannedUsers.length / totalUsers) * 100) : 0 %>%</div>
+                    <div class="summary-label">Процент заблокированных</div>
+                </div>
+            </div>
+            
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="🔍 Поиск по имени, email или ролям..." onkeyup="filterUsers(this.value)">
+            </div>
+            
+            <% if (bannedUsers && bannedUsers.length > 0) { %>
+                <div class="users-grid">
+                    <% bannedUsers.forEach(user => { %>
+                        <div class="user-card" 
+                             data-name="<%= (user.name || '').toLowerCase() %>" 
+                             data-email="<%= (user.email || '').toLowerCase() %>"
+                             data-roles="<%= (Array.isArray(user.roles) ? user.roles.join(' ') : user.roles || '').toLowerCase() %>">
+                            <div class="user-header">
+                                <div class="user-avatar">
+                                    <%= (user.name || user.email || 'B').charAt(0).toUpperCase() %>
+                                </div>
+                                <div class="user-info">
+                                    <h3>
+                                        <%= user.name || user.email || 'Пользователь' %>
+                                        <span class="status-badge">🚫 Заблокирован</span>
+                                    </h3>
+                                    <p><%= user.email || 'Нет email' %></p>
+                                </div>
+                            </div>
+                            
+                            <div class="user-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">ID пользователя:</span>
+                                    <span class="detail-value"><%= user.id %></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Роли:</span>
+                                    <span class="detail-value"><%= Array.isArray(user.roles) ? user.roles.join(', ') : user.roles || 'Нет ролей' %></span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">Статус:</span>
+                                    <span class="detail-value" style="color: #e53e3e; font-weight: bold;">Заблокирован</span>
+                                </div>
+                            </div>
+                            
+                            <div class="user-actions">
+                                <button class="btn btn-success btn-sm" onclick="unbanUser('<%= user.id %>')">
+                                    ✅ Разблокировать
+                                </button>
+                                <% if (user.roles && (Array.isArray(user.roles) ? user.roles.includes('student') : user.roles.includes('student') || user.roles.includes('Студент'))) { %>
+                                    <a href="/teacher/student/<%= user.id %>/results" class="btn btn-outline btn-sm">📊 Результаты</a>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } else { %>
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎉</div>
+                    <h3>Нет заблокированных пользователей</h3>
+                    <p>Все пользователи активны</p>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <script>
+        // Функция разблокировки пользователя
+        async function unbanUser(userId) {
+            const token = localStorage.getItem('access_token');
+            if (!token) {
+                alert('Ошибка: отсутствует токен авторизации');
+                return;
+            }
+
+            if (!confirm('Вы уверены, что хотите разблокировать этого пользователя?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/users/${userId}/block`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ is_blocked: false })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `HTTP ${response.status}`);
+                }
+
+                // Удаляем карточку пользователя из DOM
+                const userCards = document.querySelectorAll('.user-card');
+                userCards.forEach(card => {
+                    if (card.innerHTML.includes(userId)) {
+                        card.style.opacity = '0';
+                        setTimeout(() => card.remove(), 300);
+                    }
+                });
+
+                // Обновляем статистику
+                updateStats();
+                
+                // Показываем уведомление
+                showNotification('Пользователь успешно разблокирован', 'success');
+                
+                console.log(`[UNBAN] Пользователь ${userId} разблокирован`);
+                
+            } catch (error) {
+                console.error('[UNBAN] Ошибка:', error);
+                showNotification(`Ошибка: ${error.message}`, 'error');
+            }
+        }
+
+        // Обновление статистики
+        function updateStats() {
+            const bannedCountEl = document.getElementById('bannedCount');
+            const currentCount = parseInt(bannedCountEl.textContent);
+            bannedCountEl.textContent = Math.max(0, currentCount - 1);
+            
+            // Обновляем процент
+            const totalUsers = parseInt(document.getElementById('totalUsers').textContent);
+            const newBannedCount = parseInt(bannedCountEl.textContent);
+            const percentage = totalUsers > 0 ? Math.round((newBannedCount / totalUsers) * 100) : 0;
+            document.getElementById('banPercentage').textContent = percentage + '%';
+        }
+
+        // Показ уведомлений
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'error' : 'success'}`;
+            notification.textContent = message;
+            notification.style.position = 'fixed';
+            notification.style.top = '20px';
+            notification.style.right = '20px';
+            notification.style.zIndex = '9999';
+            notification.style.maxWidth = '300px';
+
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // Фильтрация пользователей
+        function filterUsers(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('.user-card').forEach(card => {
+                const name = card.getAttribute('data-name') || '';
+                const email = card.getAttribute('data-email') || '';
+                const roles = card.getAttribute('data-roles') || '';
+                const matches = name.includes(q) || email.includes(q) || roles.includes(q);
+                card.style.display = matches ? 'block' : 'none';
+            });
+        }
+
+        // Сохраняем токен при загрузке страницы
+        const accessToken = '<%= sessionData?.accessToken || "" %>';
+        const refreshToken = '<%= sessionData?.refreshToken || "" %>';
+        
+        if (accessToken && refreshToken) {
+            localStorage.setItem('access_token', accessToken);
+            localStorage.setItem('refresh_token', refreshToken);
+        }
+    </script>
+</body>
+</html>

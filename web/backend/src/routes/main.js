@@ -4,6 +4,35 @@ const mainApiClient = require('../utils/mainApiClient');
 const sessionManager = require('../utils/session');
 const authApiClient = require('../utils/authApiClient');
 
+// Вспомогательная функция для получения курсов пользователя
+async function getUserCourses(req, userId) {
+  try {
+    const coursesResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/db/users/${userId}/courses`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res: req.res
+    });
+    const coursesData = coursesResp?.data;
+    
+    if (coursesData && Array.isArray(coursesData)) {
+      return coursesData;
+    } else if (coursesData && coursesData.courses && Array.isArray(coursesData.courses)) {
+      return coursesData.courses;
+    } else if (coursesData && coursesData.length > 0) {
+      return coursesData;
+    }
+    
+    return [];
+  } catch (err) {
+    console.warn(`[MAIN] Не удалось получить курсы пользователя ${userId}:`, err.message);
+    return [];
+  }
+}
+
 // Главная страница
 router.get('/', async (req, res) => {
   const { userStatus, sessionData } = req;
@@ -45,6 +74,11 @@ router.get('/', async (req, res) => {
           email: 'unknown@example.com',
           roles: ['student']
         };
+        // Фоллбек имени, если провайдер не прислал
+        if (!user.name || user.name.trim() === '') {
+          user.name = user.email || 'Пользователь';
+        }
+
         const accessToken = sessionData?.accessToken;
         
         let courses = [];
@@ -54,21 +88,7 @@ router.get('/', async (req, res) => {
         if (user.id && accessToken) {
           try {
             // Получаем курсы пользователя
-            const coursesResp = await mainApiClient.requestWithRefresh({
-              endpoint: `/api/db/users/${user.id}/courses`,
-              method: 'get',
-              sessionToken: req.sessionToken,
-              sessionData,
-              sessionManager,
-              authApiClient,
-              res
-            });
-            const coursesData = coursesResp?.data;
-            if (coursesData && Array.isArray(coursesData)) {
-              courses = coursesData;
-            } else if (coursesData && coursesData.courses) {
-              courses = coursesData.courses;
-            }
+            courses = await getUserCourses(req, user.id);
             
             // Получаем дополнительную информацию о пользователе
             try {
@@ -137,7 +157,8 @@ router.get('/', async (req, res) => {
           title: 'Личный кабинет',
           user: user,
           courses: courses,
-          notifications: notifications
+          notifications: notifications,
+          sessionData
         });
       } catch (error) {
         console.error('[MAIN] Критическая ошибка при загрузке dashboard:', error);
@@ -150,7 +171,8 @@ router.get('/', async (req, res) => {
           },
           courses: [],
           notifications: [],
-          error: 'Не удалось загрузить данные.'
+          error: 'Не удалось загрузить данные.',
+          sessionData
         });
       }
       break;
@@ -194,8 +216,6 @@ router.get('/register', (req, res) => {
 // GET /logout?all=true - выход на всех устройствах (+ инвалидация refresh token в auth модуле)
 router.get('/logout', async (req, res) => {
   const { sessionToken, sessionData } = req;
-  const sessionManager = require('../utils/session');
-  const authApiClient = require('../utils/authApiClient');
   
   const logoutAll = req.query.all === 'true';
   
@@ -258,17 +278,7 @@ router.get('/course/:id', async (req, res) => {
         
         // Если не получили, ищем в курсах пользователя
         if (!course) {
-          const coursesResp = await mainApiClient.requestWithRefresh({
-            endpoint: `/api/db/users/${user.id}/courses`,
-            method: 'get',
-            sessionToken: req.sessionToken,
-            sessionData,
-            sessionManager,
-            authApiClient,
-            res
-          });
-          const coursesData = coursesResp?.data;
-          const courses = Array.isArray(coursesData) ? coursesData : (coursesData?.courses || []);
+          const courses = await getUserCourses(req, user.id);
           course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
         }
         
@@ -300,7 +310,7 @@ router.get('/course/:id', async (req, res) => {
     if (!course) {
       return res.status(404).render('error', {
         title: 'Курс не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный курс не существует или недоступен.'
       });
     }
@@ -314,7 +324,7 @@ router.get('/course/:id', async (req, res) => {
     console.error('[MAIN] Критическая ошибка при загрузке курса:', error);
     res.status(500).render('error', {
       title: 'Ошибка',
-      statusCode: 500,
+      status: 500,
       message: 'Не удалось загрузить данные курса. Попробуйте позже.'
     });
   }
@@ -348,7 +358,7 @@ router.get('/test/:id', async (req, res) => {
     if (!testData || !testData.id) {
       return res.status(404).render('error', {
         title: 'Тест не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный тест не существует или был удалён.'
       });
     }
@@ -364,7 +374,7 @@ router.get('/test/:id', async (req, res) => {
     if (error.status === 404) {
       return res.status(404).render('error', {
         title: 'Тест не найден',
-        statusCode: 404,
+        status: 404,
         message: 'Запрошенный тест не существует.'
       });
     }
@@ -372,7 +382,7 @@ router.get('/test/:id', async (req, res) => {
     if (error.status === 403) {
       return res.status(403).render('error', {
         title: 'Доступ запрещён',
-        statusCode: 403,
+        status: 403,
         message: 'У вас нет доступа к этому тесту.'
       });
     }
@@ -383,10 +393,169 @@ router.get('/test/:id', async (req, res) => {
     
     res.status(500).render('error', {
       title: 'Ошибка',
-      statusCode: 500,
+      status: 500,
       message: 'Не удалось загрузить тест. Попробуйте позже.'
     });
   }
+});
+
+// POST маршрут для записи на курс
+router.post('/api/courses/:id/enroll', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const courseId = req.params.id;
+  const userId = req.body.user_id;
+  const accessToken = sessionData?.accessToken;
+  
+  // Проверяем, что пользователь записывает себя на курс
+  if (userId != sessionData?.userData?.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  
+  try {
+    const enrollResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${courseId}/enroll`,
+      method: 'post',
+      body: { user_id: userId },
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(enrollResp?.data || { success: true });
+  } catch (error) {
+    console.error(`[MAIN] Ошибка при записи на курс ${courseId}:`, error);
+    res.status(error.status || 500).json({ 
+      error: error.message || 'Не удалось записаться на курс' 
+    });
+  }
+});
+
+// Страница дисциплин
+router.get('/disciplines', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.redirect('/');
+  }
+  
+  try {
+    const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
+    const accessToken = sessionData?.accessToken;
+    
+    let allCourses = [];
+    let userCourses = [];
+    
+    // Получаем все доступные курсы
+    if (accessToken) {
+      try {
+        const allCoursesResp = await mainApiClient.requestWithRefresh({
+          endpoint: `/api/courses`,
+          method: 'get',
+          sessionToken: req.sessionToken,
+          sessionData,
+          sessionManager,
+          authApiClient,
+          res
+        });
+        const allCoursesData = allCoursesResp?.data;
+
+        if (allCoursesData && Array.isArray(allCoursesData)) {
+          allCourses = allCoursesData;
+        } else if (allCoursesData && allCoursesData.courses && Array.isArray(allCoursesData.courses)) {
+          allCourses = allCoursesData.courses;
+        } else {
+          allCourses = [];
+        }
+      } catch (err) {
+        console.warn('[MAIN] Не удалось получить все курсы:', err.message);
+      }
+      
+      // Получаем курсы пользователя
+      if (user.id) {
+        userCourses = await getUserCourses(req, user.id);
+      }
+    }
+    
+    // Определяем, на какие курсы пользователь уже записан
+    const userCourseIds = new Set(userCourses.map(course => course.id));
+    
+    // Если API недоступен или нет курсов, добавляем тестовые курсы для демонстрации
+    if (allCourses.length === 0) {
+      console.log('[MAIN] API недоступен или нет курсов, используем тестовые курсы');
+      allCourses = [
+        {
+          id: 'test-course-1',
+          name: 'Тестовый курс программирования',
+          description: 'Это тестовый курс для изучения основ программирования. Включает в себя базовые концепции алгоритмов, структур данных и практические задания.',
+          active: true,
+          tests_count: 3
+        },
+        {
+          id: 'test-course-2', 
+          name: 'Математический анализ',
+          description: 'Курс по изучению математического анализа, включая дифференциальное и интегральное исчисление, теорию пределов и рядов.',
+          active: true,
+          tests_count: 5
+        },
+        {
+          id: 'test-course-3',
+          name: 'Физика для начинающих', 
+          description: 'Основы классической механики, термодинамики и электромагнетизма. Практические примеры и эксперименты.',
+          active: true,
+          tests_count: 4
+        }
+      ];
+    }
+    
+    // Разделяем курсы на доступные для записи и уже записанные
+    const availableCourses = allCourses.filter(course => 
+      course.active && !userCourseIds.has(course.id)
+    );
+    const enrolledCourses = allCourses.filter(course => 
+      userCourseIds.has(course.id)
+    );
+    
+    console.log('[MAIN] Final availableCourses:', availableCourses);
+    console.log('[MAIN] Final enrolledCourses:', enrolledCourses);
+    
+    res.render('disciplines', {
+      title: 'Дисциплины',
+      user: user,
+      availableCourses: availableCourses,
+      enrolledCourses: enrolledCourses
+    });
+  } catch (error) {
+    console.error('[MAIN] Ошибка при загрузке дисциплин:', error);
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      status: 500,
+      message: 'Не удалось загрузить дисциплины. Попробуйте позже.'
+    });
+  }
+});
+
+// Страница профиля
+router.get('/profile', async (req, res) => {
+  if (req.userStatus !== 'authenticated') {
+    return res.redirect('/');
+  }
+
+  const user = req.sessionData?.userData || {};
+  const roles = user.roles || [];
+  const isAdmin = roles.includes('admin') || roles.includes('Админ');
+
+  res.render('profile', {
+    title: 'Мой профиль',
+    user,
+    isAdmin
+  });
 });
 
 // Страница 404
