@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -61,6 +62,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 		// Получаем роли из контекста
 		roles, exists := c.Get("user_roles")
 		if !exists {
+			fmt.Printf("[ROLE MIDDLEWARE] User roles not found in context\n")
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "User roles not found",
 			})
@@ -70,6 +72,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 
 		userRoles, ok := roles.([]string)
 		if !ok {
+			fmt.Printf("[ROLE MIDDLEWARE] Invalid user roles format: %T\n", roles)
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Invalid user roles format",
 			})
@@ -77,12 +80,15 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			return
 		}
 
+		fmt.Printf("[ROLE MIDDLEWARE] User roles: %v, Allowed roles: %v\n", userRoles, allowedRoles)
+
 		// Проверяем, есть ли у пользователя нужная роль
 		hasRole := false
 		for _, userRole := range userRoles {
 			for _, allowedRole := range allowedRoles {
 				if userRole == allowedRole {
 					hasRole = true
+					fmt.Printf("[ROLE MIDDLEWARE] Role matched: %s\n", userRole)
 					break
 				}
 			}
@@ -92,6 +98,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 		}
 
 		if !hasRole {
+			fmt.Printf("[ROLE MIDDLEWARE] No matching role found\n")
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "Insufficient permissions",
 			})
@@ -99,6 +106,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			return
 		}
 
+		fmt.Printf("[ROLE MIDDLEWARE] Access granted\n")
 		c.Next()
 	}
 }

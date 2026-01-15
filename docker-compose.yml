@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web-nginx:
     image: nginx:alpine
@@ -29,8 +27,6 @@ services:
 
   web-backend:
     build: ./web/backend
-    deploy:
-      replicas: 2
     environment:
       - REDIS_HOST=web-redis
       - REDIS_PORT=6379

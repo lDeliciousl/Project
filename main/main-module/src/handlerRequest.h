@@ -107,3 +107,12 @@ void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res);
 void GetTestsHandler(const httplib::Request& req, httplib::Response& res);
 void UpdateTestHandler(const httplib::Request& req, httplib::Response& res);
 void DeleteTestHandler(const httplib::Request& req, httplib::Response& res);
+
+// Test results API (по ТЗ: test:answer:read)
+void GetTestUsersHandler(const httplib::Request& req, httplib::Response& res);
+void GetTestGradesHandler(const httplib::Request& req, httplib::Response& res);
+void GetTestAnswersHandler(const httplib::Request& req, httplib::Response& res);
+
+// Answers API (по ТЗ: answer:read/update/del)
+void GetAnswerHandler(const httplib::Request& req, httplib::Response& res);
+void DeleteAnswerHandler(const httplib::Request& req, httplib::Response& res);

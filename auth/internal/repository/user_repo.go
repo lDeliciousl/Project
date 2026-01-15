@@ -20,6 +20,7 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id primitive.ObjectID) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
 	FindByProvider(ctx context.Context, provider, providerID string) (*models.User, error)
+	GetAll(ctx context.Context) ([]*models.User, error)
 	Update(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	Delete(ctx context.Context, id primitive.ObjectID) error
 	UpsertByProvider(ctx context.Context, provider, providerID string, user *models.User) (*models.User, error)
@@ -121,7 +122,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 
 	// Устанавливаем значения по умолчанию
 	if user.Roles == nil {
-		user.Roles = []string{"user"}
+		user.Roles = []string{"Студент"}
 	}
 	if !user.IsActive {
 		user.IsActive = true
@@ -552,6 +553,30 @@ func (r *userRepository) UpdateRoles(ctx context.Context, userID primitive.Objec
 	}
 
 	return nil
+}
+
+// GetAll получает всех пользователей
+func (r *userRepository) GetAll(ctx context.Context) ([]*models.User, error) {
+	cursor, err := r.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find users: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var users []*models.User
+	for cursor.Next(ctx) {
+		var user models.User
+		if err := cursor.Decode(&user); err != nil {
+			return nil, fmt.Errorf("failed to decode user: %w", err)
+		}
+		users = append(users, &user)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("cursor error: %w", err)
+	}
+
+	return users, nil
 }
 
 // GetUserByID получает пользователя по строковому ID

@@ -84,7 +84,16 @@ int main() {
     server.Get(R"(/api/attempts/([^/]+))", GetAttemptHandler);
     server.Post(R"(/api/attempts/([^/]+)/finish)", FinishAttemptHandler);
     server.Put(R"(/api/attempts/([^/]+)/answers/([^/]+))", UpdateAnswerHandler);
+    server.Delete(R"(/api/attempts/([^/]+)/answers/([^/]+))", DeleteAnswerHandler);
     server.Get(R"(/api/attempts/([^/]+)/answers)", GetAttemptAnswersHandler);
+
+    // Test results API (по ТЗ: test:answer:read)
+    server.Get(R"(/api/tests/([^/]+)/users)", GetTestUsersHandler);
+    server.Get(R"(/api/tests/([^/]+)/grades)", GetTestGradesHandler);
+    server.Get(R"(/api/tests/([^/]+)/answers)", GetTestAnswersHandler);
+
+    // Answers API
+    server.Get(R"(/api/answers/([^/]+))", GetAnswerHandler);
     
     // Обработчик несовпадающих запросов (должен быть в конце после всех маршрутов)
     server.set_error_handler(handle_unmatched_request);
