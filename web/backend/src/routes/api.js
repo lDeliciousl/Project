@@ -325,6 +325,15 @@ router.get('/attempts/:id/answers', requireAuth, async (req, res) => {
   }
 });
 
+router.delete('/attempts/:attemptId/answers/:answerId', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.deleteAnswer(req.params.attemptId, req.params.answerId, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
 // ========== ВОПРОСЫ (QUESTIONS) ==========
 
 router.get('/questions', requireAuth, async (req, res) => {

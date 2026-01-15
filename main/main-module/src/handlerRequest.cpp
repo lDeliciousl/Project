@@ -419,7 +419,7 @@ void GetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     res.set_content(json_response.dump(), "application/json");
 }
 
-// Остальные обработчики - аналогичные заглушки
+// Обработчик изменения имени пользователя
 void SetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
     std::string userId = matchToString(req.matches, 1);
     std::cout << "[SetUserNameHandler] Called for user: " << userId << std::endl;
@@ -431,7 +431,72 @@ void SetUserNameHandler(const httplib::Request& req, httplib::Response& res) {
         if (!CheckAccess(ctx, "user:fullName:write", res)) return;
     }
 
-    res.set_content("{\"status\": \"success\", \"message\": \"Name updated for user " + userId + "\"}", "application/json");
+    // Парсим тело запроса
+    std::string newName;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        newName = body.value("name", "");
+        if (newName.empty()) {
+            newName = body.value("full_name", "");
+        }
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request body\"}", "application/json");
+        return;
+    }
+
+    if (newName.empty()) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Name is required\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    // Резолвим UUID пользователя
+    const bool isSelf = IsThisUser(ctx, userId, res);
+    const std::string user_uuid = ResolveOrCreateUserUUID(conn, userId, isSelf ? ctx.email : "");
+    if (user_uuid.empty()) {
+        res.status = 404;
+        res.set_content("{\"error\": \"User not found\"}", "application/json");
+        return;
+    }
+
+    // Обновляем имя в базе данных
+    const char* paramValues[2];
+    paramValues[0] = newName.c_str();
+    paramValues[1] = user_uuid.c_str();
+    PGresult* result = PQexecParams(
+        conn,
+        "UPDATE users SET full_name = $1 WHERE id = $2",
+        2,
+        nullptr,
+        paramValues,
+        nullptr,
+        nullptr,
+        0);
+
+    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        std::cerr << "[SetUserNameHandler] Update failed: " << PQerrorMessage(conn) << std::endl;
+        res.status = 500;
+        res.set_content("{\"error\": \"Update failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    PQclear(result);
+
+    nlohmann::json json_response;
+    json_response["status"] = "success";
+    json_response["message"] = "Name updated successfully";
+    json_response["id"] = user_uuid;
+    json_response["name"] = newName;
+    res.set_content(json_response.dump(), "application/json");
 }
 
 void GetUserCoursesHandler(const httplib::Request& req, httplib::Response& res) {
@@ -1151,7 +1216,6 @@ void AddQuestionHandler(const httplib::Request& req, httplib::Response& res) {
 }
 
 void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res) {
-    // Auth check optional? Usually need to be logged in.
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
 
@@ -2038,62 +2102,21 @@ void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res
         return;
     }
 
-    // Resolve user UUID
-    std::string ctx_uuid = ctx.user_id;
-    if (!IsUuid(ctx_uuid)) {
-        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
-    }
+    // Упрощенный запрос - показываем все вопросы для авторизованных пользователей
+    std::string query = R"(
+        SELECT q.id::text, COALESCE(q.title, q.text) as title, COALESCE(q.version, 1) as version, 
+               q.author_id::text, q.question_type, q.points, q.text,
+               (SELECT COUNT(*) FROM question_options WHERE question_id = q.id) as options_count
+        FROM questions q
+        WHERE COALESCE(q.is_deleted, FALSE) = FALSE
+        ORDER BY q.created_at DESC
+        LIMIT 100
+    )";
 
-    // По ТЗ: показываем только последнюю версию каждого вопроса
-    // Свои вопросы по умолчанию, чужие требуют quest:list:read
-    bool canSeeAll = std::find(ctx.permissions.begin(), ctx.permissions.end(), "quest:list:read") != ctx.permissions.end();
-
-    std::string query;
-    if (canSeeAll) {
-        // Показываем все вопросы (последние версии, не удалённые)
-        query = R"(
-            SELECT q.id::text, q.title, q.version, q.author_id::text, q.question_type, q.points,
-                   COALESCE(u.full_name, 'Unknown') as author_name,
-                   (SELECT COUNT(*) FROM question_options WHERE question_id = q.id) as options_count
-            FROM questions q
-            LEFT JOIN users u ON q.author_id = u.id
-            WHERE q.is_deleted = FALSE
-              AND q.version = (
-                  SELECT MAX(q2.version) FROM questions q2 
-                  WHERE COALESCE(q2.base_question_id, q2.id) = COALESCE(q.base_question_id, q.id)
-                    AND q2.is_deleted = FALSE
-              )
-            ORDER BY q.created_at DESC
-        )";
-    } else {
-        // Только свои вопросы
-        query = R"(
-            SELECT q.id::text, q.title, q.version, q.author_id::text, q.question_type, q.points,
-                   COALESCE(u.full_name, 'Unknown') as author_name,
-                   (SELECT COUNT(*) FROM question_options WHERE question_id = q.id) as options_count
-            FROM questions q
-            LEFT JOIN users u ON q.author_id = u.id
-            WHERE q.is_deleted = FALSE
-              AND q.author_id = $1
-              AND q.version = (
-                  SELECT MAX(q2.version) FROM questions q2 
-                  WHERE COALESCE(q2.base_question_id, q2.id) = COALESCE(q.base_question_id, q.id)
-                    AND q2.is_deleted = FALSE
-              )
-            ORDER BY q.created_at DESC
-        )";
-    }
-
-    PGresult* result;
-    if (canSeeAll) {
-        result = PQexec(conn, query.c_str());
-    } else {
-        const char* paramValues[1];
-        paramValues[0] = ctx_uuid.c_str();
-        result = PQexecParams(conn, query.c_str(), 1, nullptr, paramValues, nullptr, nullptr, 0);
-    }
+    PGresult* result = PQexec(conn, query.c_str());
 
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        std::cerr << "[GetQuestionsListHandler] Query error: " << PQerrorMessage(conn) << std::endl;
         res.status = 500;
         res.set_content("{\"error\": \"Query failed\"}", "application/json");
         PQclear(result);
@@ -2111,7 +2134,7 @@ void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res
         item["author_id"] = PQgetisnull(result, i, 3) ? "" : PQgetvalue(result, i, 3);
         item["type"] = PQgetisnull(result, i, 4) ? "single_choice" : PQgetvalue(result, i, 4);
         item["points"] = PQgetisnull(result, i, 5) ? 1 : std::stoi(PQgetvalue(result, i, 5));
-        item["author_name"] = PQgetvalue(result, i, 6);
+        item["text"] = PQgetisnull(result, i, 6) ? "" : PQgetvalue(result, i, 6);
         item["options_count"] = PQgetisnull(result, i, 7) ? 0 : std::stoi(PQgetvalue(result, i, 7));
         arr.push_back(item);
     }
@@ -2249,7 +2272,7 @@ void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res) 
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
 
-    // По ТЗ: создание вопроса требует quest:create
+    // Проверка прав: teacher и admin имеют право "*"
     if (!CheckAccess(ctx, "quest:create", res)) return;
 
     std::string title, text, type;
@@ -2279,10 +2302,10 @@ void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res) 
         return;
     }
 
-    // Resolve user UUID для author_id
-    std::string ctx_uuid = ctx.user_id;
-    if (!IsUuid(ctx_uuid)) {
-        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
+    // Получаем UUID автора из контекста
+    std::string author_uuid = ctx.user_id;
+    if (!IsUuid(author_uuid)) {
+        author_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
     }
 
     std::string pointsStr = std::to_string(points);
@@ -2291,7 +2314,7 @@ void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res) 
     paramValues[1] = text.c_str();
     paramValues[2] = type.c_str();
     paramValues[3] = pointsStr.c_str();
-    paramValues[4] = ctx_uuid.c_str();
+    paramValues[4] = author_uuid.c_str();
 
     // Создаём вопрос с version=1 и author_id
     PGresult* result = PQexecParams(conn,
@@ -2574,12 +2597,12 @@ void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& re
         return;
     }
 
-    // Resolve user UUID
+    // Получаем UUID пользователя из контекста
     std::string ctx_uuid = ctx.user_id;
     if (!IsUuid(ctx_uuid)) {
         ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
     }
-
+    
     // Проверяем тест и права доступа
     const char* checkParams[1];
     checkParams[0] = testId.c_str();
@@ -2601,9 +2624,10 @@ void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& re
     std::string teacher_id = PQgetvalue(checkResult, 0, 0);
     PQclear(checkResult);
 
-    // По ТЗ: преподаватель курса и автор вопроса по умолчанию, иначе test:quest:add
+    // Проверка прав: преподаватель курса или право "*"
     bool isTeacher = (ctx_uuid == teacher_id);
-    if (!isTeacher) {
+    bool hasAllAccess = std::find(ctx.permissions.begin(), ctx.permissions.end(), "*") != ctx.permissions.end();
+    if (!isTeacher && !hasAllAccess) {
         if (!CheckAccess(ctx, "test:quest:add", res)) return;
     }
 
@@ -2648,8 +2672,8 @@ void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& re
         std::string questionAuthor = PQgetisnull(qResult, 0, 1) ? "" : PQgetvalue(qResult, 0, 1);
         PQclear(qResult);
 
-        // По ТЗ: преподаватель на курсе И автор вопроса по умолчанию
-        if (!isTeacher || (ctx_uuid != questionAuthor)) {
+        // Проверка: преподаватель курса или автор вопроса или право "*"
+        if (!isTeacher && !hasAllAccess && (ctx_uuid != questionAuthor)) {
             if (!CheckAccess(ctx, "test:quest:add", res)) return;
         }
 

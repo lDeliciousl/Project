@@ -144,7 +144,8 @@ router.get('/', requireTeacher, async (req, res) => {
       myQuestions,
       totalTests,
       totalStudents,
-      bannedUsers
+      bannedUsers,
+      sessionData: req.sessionData
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки панели:', error);
@@ -155,7 +156,8 @@ router.get('/', requireTeacher, async (req, res) => {
       myQuestions: [],
       totalTests: 0,
       totalStudents: 0,
-      bannedUsers: 0
+      bannedUsers: 0,
+      sessionData: req.sessionData
     });
   }
 });
@@ -211,7 +213,8 @@ router.get('/course/:id', requireTeacher, async (req, res) => {
       user,
       course,
       tests,
-      students
+      students,
+      sessionData: req.sessionData
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки страницы курса:', error);
@@ -282,7 +285,8 @@ router.get('/test/:id', requireTeacher, async (req, res) => {
       user,
       test,
       course,
-      availableQuestions
+      availableQuestions,
+      sessionData: req.sessionData
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки страницы теста:', error);
@@ -304,7 +308,8 @@ router.get('/question/new', requireTeacher, (req, res) => {
     title: 'Создание вопроса',
     user,
     question: {},
-    testId
+    testId,
+    sessionData: req.sessionData
   });
 });
 
@@ -339,7 +344,8 @@ router.get('/question/:id', requireTeacher, async (req, res) => {
       title: `Редактирование: ${question.title || 'Вопрос'}`,
       user,
       question,
-      testId
+      testId,
+      sessionData: req.sessionData
     });
   } catch (error) {
     console.error('[Teacher] Ошибка загрузки страницы вопроса:', error);

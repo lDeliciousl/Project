@@ -307,6 +307,20 @@ class MainApiClient {
     return this.request(`/api/attempts/${attemptId}/answers/${answerId}`, 'put', { option_id: optionId }, accessToken);
   }
 
+  /**
+   * Получить ответы попытки
+   */
+  async getAttemptAnswers(attemptId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}/answers`, 'get', null, accessToken);
+  }
+
+  /**
+   * Удалить ответ в попытке
+   */
+  async deleteAnswer(attemptId, answerId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}/answers/${answerId}`, 'delete', null, accessToken);
+  }
+
   // ========== Методы для работы с вопросами (Questions) ==========
 
   /**

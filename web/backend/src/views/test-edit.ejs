@@ -262,9 +262,13 @@
 
         async function addQuestionToTest(questionId) {
             try {
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
                 const res = await fetch('/api/tests/' + testId + '/questions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
                     body: JSON.stringify({ question_id: questionId })
                 });
                 if (res.ok) location.reload();
@@ -284,6 +288,7 @@
             
             // Создаём вопрос с базовыми данными
             const data = { 
+                title: title,
                 text: title,
                 options: [
                     { text: 'Вариант 1', is_correct: true },
@@ -292,19 +297,44 @@
             };
             
             try {
-                const res = await fetch('/api/tests/' + testId + '/questions', {
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
+                
+                // 1. Сначала создаем вопрос через /api/questions
+                const createRes = await fetch('/api/questions', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
                     body: JSON.stringify(data)
                 });
                 
-                if (res.ok) {
-                    const result = await res.json();
-                    // Переходим на страницу редактора вопроса
-                    window.location.href = '/teacher/question/' + result.id + '?test=' + testId;
+                if (!createRes.ok) {
+                    const err = await createRes.json();
+                    alert('Ошибка при создании вопроса: ' + (err.error || 'Не удалось создать'));
+                    return;
+                }
+                
+                const questionResult = await createRes.json();
+                const questionId = questionResult.id;
+                
+                // 2. Затем добавляем вопрос к тесту через /api/tests/{testId}/questions
+                const addRes = await fetch('/api/tests/' + testId + '/questions', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ question_id: questionId })
+                });
+                
+                if (addRes.ok) {
+                    const result = await addRes.json();
+                    // Перезагружаем страницу чтобы показать новый вопрос
+                    location.reload();
                 } else {
-                    const err = await res.json();
-                    alert('Ошибка: ' + (err.error || 'Не удалось создать вопрос'));
+                    const err = await addRes.json();
+                    alert('Ошибка при добавлении вопроса к тесту: ' + (err.error || 'Не удалось добавить'));
                 }
             } catch (err) {
                 alert('Ошибка сети: ' + err.message);
@@ -314,7 +344,13 @@
         async function removeQuestion(questionId) {
             if (!confirm('Удалить вопрос из теста?')) return;
             try {
-                const res = await fetch('/api/tests/' + testId + '/questions/' + questionId, { method: 'DELETE' });
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
+                const res = await fetch('/api/tests/' + testId + '/questions/' + questionId, { 
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
                 if (res.ok) {
                     // Immediately remove from UI
                     const item = document.querySelector(`.question-item[data-id="${questionId}"]`);
@@ -383,9 +419,13 @@
             const items = document.querySelectorAll('.question-item');
             const questionIds = [...items].map(el => el.getAttribute('data-id'));
             try {
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
                 const res = await fetch('/api/tests/' + testId + '/questions/order', {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
                     body: JSON.stringify({ question_ids: questionIds })
                 });
                 if (res.ok) {

@@ -328,9 +328,13 @@ Test Database::get_test_details(const std::string& test_id) {
     }
     PQclear(resTest);
     
-    // 2. Get Questions
+    // 2. Get Questions through test_questions junction table
     std::stringstream qQuery;
-    qQuery << "SELECT id, text, question_type, points FROM questions WHERE test_id = '" << test_id << "' ORDER BY order_number, created_at";
+    qQuery << "SELECT q.id, q.text, q.question_type, q.points "
+             << "FROM questions q "
+             << "JOIN test_questions tq ON q.id = tq.question_id "
+             << "WHERE tq.test_id = '" << test_id << "' "
+             << "ORDER BY tq.order_number, q.created_at";
     PGresult* resQ = PQexec(pImpl->connection, qQuery.str().c_str());
     
     int qCount = PQntuples(resQ);

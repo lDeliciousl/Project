@@ -191,9 +191,13 @@
                     method = 'POST';
                 }
                 
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
                 const res = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
                     body: JSON.stringify(data)
                 });
                 
@@ -219,7 +223,13 @@
         async function deleteQuestion() {
             if (!confirm('Удалить вопрос?')) return;
             try {
-                const res = await fetch('/api/questions/' + questionId, { method: 'DELETE' });
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
+                const res = await fetch('/api/questions/' + questionId, { 
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
                 if (res.ok) {
                     window.location.href = '/teacher/questions';
                 } else {
