@@ -8,10 +8,6 @@ yarn-error.log*
 .vscode/
 .idea/
 
-# Environment variables
-.env
-.env.local
-
 # Docker
 docker-compose.override.yml
 
@@ -24,5 +20,4 @@ logs/
 Thumbs.db
 desktop.ini
 
-# Project specific
-web/backend/.env
+
