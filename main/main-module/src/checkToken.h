@@ -155,6 +155,12 @@ inline AuthContext CheckToken(const httplib::Request& req) {
         ctx.error = "JWT secret not configured";
         return ctx;
     }
+    
+    // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Принудительно устанавливаем правильный секрет
+    if (secret.length() < 43) {
+        secret = "N2X1iIyqrFkw3gst7HzCrN1rSTx80r1AZBw2MV+GPP8=";
+        std::cout << "[JWT] Исправлен обрезанный секрет: " << secret << std::endl;
+    }
 
     unsigned int mac_len = 0;
     unsigned char mac[EVP_MAX_MD_SIZE];
@@ -211,12 +217,20 @@ inline AuthContext CheckToken(const httplib::Request& req) {
         }
     }
 
-    // Simple role bridge: if auth token includes admin role, allow all actions.
+    // Role-based permissions bridge
     if (payload_json->contains("roles") && (*payload_json)["roles"].is_array()) {
         for (const auto& r : (*payload_json)["roles"]) {
-            if (r.is_string() && r.get<std::string>() == "admin") {
+            if (!r.is_string()) continue;
+            std::string role = r.get<std::string>();
+            
+            if (role == "admin") {
                 ctx.permissions.push_back("*");
-                break;
+            } else if (role == "teacher") {
+                // Teacher permissions
+                ctx.permissions.push_back("*");
+            } else if (role == "student" || role == "Студент" || role == "user") {
+                // Student/user permissions
+                ctx.permissions.push_back("test:attempt:create");
             }
         }
     }
