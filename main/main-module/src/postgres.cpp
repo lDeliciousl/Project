@@ -23,6 +23,7 @@ std::unique_ptr<Database> Database::instance_ = nullptr;
 
 struct Database::Impl {
     PGconn* connection = nullptr;
+    std::string connStr;
 };
 
 Database::Database() : pImpl(std::make_unique<Impl>()) {}
@@ -55,9 +56,10 @@ bool Database::connect(const std::string& connStr) {
     if (pImpl->connection) {
         disconnect();
     }
-    
+
+    pImpl->connStr = connStr;
     pImpl->connection = PQconnectdb(connStr.c_str());
-    
+
     if (PQstatus(pImpl->connection) != CONNECTION_OK) {
         std::cerr << "[ERROR] Connection failed: " << PQerrorMessage(pImpl->connection) << std::endl;
         disconnect();
@@ -455,5 +457,34 @@ std::vector<std::string> Database::getStringList(const std::string& column, cons
 }
 
 PGconn* Database::getConnection() const {
-    return pImpl ? pImpl->connection : nullptr;
+    // Используем отдельное соединение на поток, чтобы избежать гонок и коррапта протокола
+    thread_local PGconn* threadConn = nullptr;
+
+    // Если соединение есть и живое — возвращаем
+    if (threadConn && PQstatus(threadConn) == CONNECTION_OK) {
+        if (pImpl) pImpl->connection = threadConn; // обратная совместимость для старого кода
+        return threadConn;
+    }
+
+    // Если было, но умерло — закрываем
+    if (threadConn) {
+        PQfinish(threadConn);
+        threadConn = nullptr;
+    }
+
+    if (!pImpl || pImpl->connStr.empty()) {
+        std::cerr << "[ERROR] No connection string stored" << std::endl;
+        return nullptr;
+    }
+
+    threadConn = PQconnectdb(pImpl->connStr.c_str());
+    if (PQstatus(threadConn) != CONNECTION_OK) {
+        std::cerr << "[ERROR] Thread connection failed: " << PQerrorMessage(threadConn) << std::endl;
+        PQfinish(threadConn);
+        threadConn = nullptr;
+        return nullptr;
+    }
+
+    if (pImpl) pImpl->connection = threadConn; // для кода, который читает pImpl->connection напрямую
+    return threadConn;
 }

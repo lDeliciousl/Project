@@ -10,7 +10,7 @@ void handle_unmatched_request(const httplib::Request& req, httplib::Response& re
 // Перенаправляем на новые обработчики
 #define AddUser AddUserHandler
 #define GetUserList GetUserListHandler
-#define GetUserNamea GetUserNameHandler
+#define GetUserName GetUserNameHandler
 #define SetUserName SetUserNameHandler
 #define GetUserCourses GetUserCoursesHandler
 #define GetUserGrades GetUserGradesHandler

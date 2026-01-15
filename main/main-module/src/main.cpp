@@ -31,25 +31,30 @@ int main() {
     // Test management routes
     server.Post("/api/tests", CreateTestHandler);
     server.Get("/api/tests", GetTestsHandler);
+    // More specific routes first
+    server.Put(R"(/api/tests/([^/]+)/activate)", ActivateTestHandler);
+    server.Post(R"(/api/tests/([^/]+)/questions)", AddQuestionToTestHandler);
+    server.Delete(R"(/api/tests/([^/]+)/questions/([^/]+))", RemoveQuestionFromTestHandler);
+    server.Put(R"(/api/tests/([^/]+)/questions/order)", UpdateQuestionsOrderHandler);
+    // Generic routes after
     server.Get(R"(/api/tests/([^/]+))", GetTestDetailsHandler);
+    server.Put(R"(/api/tests/([^/]+))", UpdateTestHandler);
+    server.Delete(R"(/api/tests/([^/]+))", DeleteTestHandler);
     
     server.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content("{\"status\": \"ok\"}", "application/json");
     });
     
-    // Обработчик несовпадающих запросов
-    server.set_error_handler(handle_unmatched_request);
-    
     // API для работы с пользователями
-    server.Post("/api/db/addUser", AddUser);    // добавляет нового пользователя в бд после регистрации
-    server.Get("/api/db/users", GetUserList);    // Посмотреть список пользователей
-    server.Get(R"(/api/db/users/([^/]+)/name)", GetUserNamea);    // Посмотреть информацию о пользователе (ФИО)
-    server.Put(R"(/api/db/users/([^/]+)/name)", SetUserName);    // Изменить ФИО пользователя
-    server.Get(R"(/api/db/users/([^/]+)/courses)", GetUserCourses);    // Посмотреть информацию о пользователе (курсы)
-    server.Get(R"(/api/db/users/([^/]+)/grades)", GetUserGrades);    // Посмотреть информацию о пользователе (оценки)
-    server.Get(R"(/api/db/users/([^/]+)/tests)", GetUserTests);    // Посмотреть информацию о пользователе (тесты)
-    server.Get(R"(/api/db/users/([^/]+)/roles)", GetUserRoles);    // Посмотреть информацию о пользователе (роли)
-    server.Put(R"(/api/db/users/([^/]+)/roles)", SetUserRoles);    // Изменить роли пользователя
+    server.Post("/api/db/addUser", AddUserHandler);    // добавляет нового пользователя в бд после регистрации
+    server.Get("/api/db/users", GetUserListHandler);    // Посмотреть список пользователей
+    server.Get(R"(/api/db/users/([^/]+)/name)", GetUserNameHandler);    // Посмотреть информацию о пользователе (ФИО)
+    server.Put(R"(/api/db/users/([^/]+)/name)", SetUserNameHandler);    // Изменить ФИО пользователя
+    server.Get(R"(/api/db/users/([^/]+)/courses)", GetUserCoursesHandler);    // Посмотреть информацию о пользователе (курсы)
+    server.Get(R"(/api/db/users/([^/]+)/grades)", GetUserGradesHandler);    // Посмотреть информацию о пользователе (оценки)
+    server.Get(R"(/api/db/users/([^/]+)/tests)", GetUserTestsHandler);    // Посмотреть информацию о пользователе (тесты)
+    server.Get(R"(/api/db/users/([^/]+)/roles)", GetUserRolesHandler);    // Посмотреть информацию о пользователе (роли)
+    server.Put(R"(/api/db/users/([^/]+)/roles)", SetUserRolesHandler);    // Изменить роли пользователя
 
     server.Get(R"(/api/db/users/([^/]+)/block)", GetUserBlockedHandler);
     server.Put(R"(/api/db/users/([^/]+)/block)", SetUserBlockedHandler);
@@ -68,9 +73,6 @@ int main() {
     server.Post(R"(/api/courses/([^/]+)/enroll)", EnrollUserHandler);
     server.Delete(R"(/api/courses/([^/]+)/enroll/([^/]+))", UnenrollUserHandler);
 
-    // Test activation
-    server.Put(R"(/api/tests/([^/]+)/activate)", ActivateTestHandler);
-
     // Questions API
     server.Get("/api/questions", GetQuestionsListHandler);
     server.Get(R"(/api/questions/([^/]+))", GetQuestionHandler);
@@ -78,14 +80,14 @@ int main() {
     server.Put(R"(/api/questions/([^/]+))", UpdateQuestionHandler);
     server.Delete(R"(/api/questions/([^/]+))", DeleteQuestionHandler);
 
-    // Test questions management
-    server.Post(R"(/api/tests/([^/]+)/questions)", AddQuestionToTestHandler);
-    server.Delete(R"(/api/tests/([^/]+)/questions/([^/]+))", RemoveQuestionFromTestHandler);
-
     // Attempts API
     server.Get(R"(/api/attempts/([^/]+))", GetAttemptHandler);
     server.Post(R"(/api/attempts/([^/]+)/finish)", FinishAttemptHandler);
     server.Put(R"(/api/attempts/([^/]+)/answers/([^/]+))", UpdateAnswerHandler);
+    server.Get(R"(/api/attempts/([^/]+)/answers)", GetAttemptAnswersHandler);
+    
+    // Обработчик несовпадающих запросов (должен быть в конце после всех маршрутов)
+    server.set_error_handler(handle_unmatched_request);
     
     // Получаем порт из конфигурации или используем значение по умолчанию
     std::string port_str = config.get("server.port", "3002");

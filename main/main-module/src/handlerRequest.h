@@ -82,9 +82,11 @@ void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res);
 // Test questions management
 void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& res);
 void RemoveQuestionFromTestHandler(const httplib::Request& req, httplib::Response& res);
+void UpdateQuestionsOrderHandler(const httplib::Request& req, httplib::Response& res);
 
 // Attempts API
 void GetAttemptHandler(const httplib::Request& req, httplib::Response& res);
+void GetAttemptAnswersHandler(const httplib::Request& req, httplib::Response& res);
 void FinishAttemptHandler(const httplib::Request& req, httplib::Response& res);
 void UpdateAnswerHandler(const httplib::Request& req, httplib::Response& res);
 
@@ -103,3 +105,5 @@ void CreateTestHandler(const httplib::Request& req, httplib::Response& res);
 void AddQuestionHandler(const httplib::Request& req, httplib::Response& res);
 void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res);
 void GetTestsHandler(const httplib::Request& req, httplib::Response& res);
+void UpdateTestHandler(const httplib::Request& req, httplib::Response& res);
+void DeleteTestHandler(const httplib::Request& req, httplib::Response& res);
