@@ -24,6 +24,8 @@ type AuthService interface {
 	VerifyConfirmCode(ctx context.Context, code, refreshToken string) error
 	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
+	GetUserByID(ctx context.Context, userID string) (*models.User, error)
+	UpdateUserRoles(ctx context.Context, userID string, roles []string) error
 }
 
 type authService struct {
@@ -35,7 +37,7 @@ type authService struct {
 }
 
 var (
-	ErrAccountNotFound     = errors.New("account not found")
+	ErrAccountNotFound      = errors.New("account not found")
 	ErrAccountAlreadyExists = errors.New("account already exists")
 )
 
@@ -614,4 +616,22 @@ func generateRandomCode(length int) string {
 	}
 
 	return code
+}
+
+// GetUserByID получает пользователя по ID
+func (s *authService) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	return s.userRepo.GetUserByID(ctx, userID)
+}
+
+// UpdateUserRoles обновляет роли пользователя
+func (s *authService) UpdateUserRoles(ctx context.Context, userID string, roles []string) error {
+	user, err := s.userRepo.GetUserByID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to find user: %w", err)
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	return s.userRepo.UpdateRoles(ctx, user.ID, roles)
 }

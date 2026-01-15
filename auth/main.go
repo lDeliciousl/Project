@@ -166,6 +166,10 @@ func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler) {
 			auth.GET("/github/callback", handler.OAuthCallback)
 			auth.GET("/yandex/callback", handler.OAuthCallback)
 
+			// Управление пользователями
+			auth.GET("/users/:user_id", handler.GetUserInfo)
+			auth.PUT("/users/:user_id/roles", handler.UpdateUserRoles)
+
 			// HTML страницы
 			//auth.GET("/success", func(c *gin.Context) {
 			//	c.HTML(http.StatusOK, "success.html", nil)

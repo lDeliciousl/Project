@@ -40,6 +40,10 @@ type UserRepository interface {
 	// Блокировка/разблокировка
 	BlockUser(ctx context.Context, userID primitive.ObjectID, reason string) error
 	UnblockUser(ctx context.Context, userID primitive.ObjectID) error
+
+	// Управление ролями
+	UpdateRoles(ctx context.Context, userID primitive.ObjectID, roles []string) error
+	GetUserByID(ctx context.Context, userID string) (*models.User, error)
 }
 
 // userRepository реализация UserRepository
@@ -465,51 +469,97 @@ func (r *userRepository) UpsertByProvider(ctx context.Context, provider, provide
 		return nil, fmt.Errorf("failed to check existing user: %w", err)
 	}
 
-	// Если пользователя нет, создаем нового с именем "Аноним+номер" и ролью "Студент" (по ТЗ)
-	if existingUser == nil {
-		// Генерируем уникальный номер на основе текущего времени
-		anonymousNumber := fmt.Sprintf("%d", now.UnixNano()%1000000)
-		user.Name = fmt.Sprintf("Аноним%s", anonymousNumber)
-		user.Roles = []string{"Студент"}
+	// Если пользователь существует - обновляем базовые поля, НЕ трогаем roles
+	if existingUser != nil {
+		// Обновляем email, avatar, name (если пришел), updated_at. Роли НЕ трогаем
+		setUpdate := bson.M{
+			"email":      user.Email,
+			"avatar_url": user.AvatarURL,
+			"updated_at": now,
+		}
+		if user.Name != "" {
+			setUpdate["name"] = user.Name
+		}
+
+		opts := options.FindOneAndUpdate().
+			SetReturnDocument(options.After)
+
+		var result models.User
+		err = r.collection.FindOneAndUpdate(
+			ctx,
+			bson.M{
+				"provider":    provider,
+				"provider_id": providerID,
+			},
+			bson.M{"$set": setUpdate},
+			opts,
+		).Decode(&result)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to update existing user: %w", err)
+		}
+
+		return &result, nil
 	}
 
-	// ВАЖНО: created_at нельзя обновлять через $set, иначе будет конфликт с $setOnInsert
-	// Поэтому формируем $set явно, без created_at.
-	setUpdate := bson.M{
-		"email":       user.Email,
-		"name":        user.Name,
-		"roles":       user.Roles,
-		"avatar_url":  user.AvatarURL,
-		"provider":    provider,
-		"provider_id": providerID,
-		"updated_at":  now,
+	// Если пользователя нет, создаем нового: используем имя из профиля, иначе fallback "Аноним+номер"
+	anonymousNumber := fmt.Sprintf("%d", now.UnixNano()%1000000)
+	resolvedName := user.Name
+	if resolvedName == "" {
+		resolvedName = fmt.Sprintf("Аноним%s", anonymousNumber)
 	}
 
-	opts := options.FindOneAndUpdate().
-		SetUpsert(true).
-		SetReturnDocument(options.After)
+	newUser := &models.User{
+		Email:      user.Email,
+		Name:       resolvedName,
+		Roles:      []string{"Студент"},
+		AvatarURL:  user.AvatarURL,
+		Provider:   provider,
+		ProviderID: providerID,
+		IsActive:   true,
+		Blocked:    false,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
 
-	var result models.User
-	err = r.collection.FindOneAndUpdate(
+	result, err := r.collection.InsertOne(ctx, newUser)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new user: %w", err)
+	}
+
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		newUser.ID = oid
+	}
+
+	return newUser, nil
+}
+
+// UpdateRoles обновляет роли пользователя
+func (r *userRepository) UpdateRoles(ctx context.Context, userID primitive.ObjectID, roles []string) error {
+	_, err := r.collection.UpdateOne(
 		ctx,
+		bson.M{"_id": userID},
 		bson.M{
-			"provider":    provider,
-			"provider_id": providerID,
-		},
-		bson.M{
-			"$set": setUpdate,
-			"$setOnInsert": bson.M{
-				"created_at": now,
-				"blocked":    false,
-				"is_active":  true,
+			"$set": bson.M{
+				"roles":      roles,
+				"updated_at": time.Now(),
 			},
 		},
-		opts,
-	).Decode(&result)
+	)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to upsert user: %w", err)
+		return fmt.Errorf("failed to update user roles: %w", err)
 	}
 
-	return &result, nil
+	return nil
+}
+
+// GetUserByID получает пользователя по строковому ID
+func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
+	oid, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID format: %w", err)
+	}
+
+	return r.FindByID(ctx, oid)
 }

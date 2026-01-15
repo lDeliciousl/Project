@@ -351,6 +351,51 @@ func (h *AuthHandler) HealthCheck(c *gin.Context) {
 	})
 }
 
+// GetUserInfo получает информацию о пользователе по ID
+func (h *AuthHandler) GetUserInfo(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "user_id is required"})
+		return
+	}
+
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Error: "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user.ConvertToUserData())
+}
+
+// UpdateUserRoles обновляет роли пользователя
+func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "user_id is required"})
+		return
+	}
+
+	var req struct {
+		Roles []string `json:"roles" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+
+	if err := h.authService.UpdateUserRoles(c.Request.Context(), userID, req.Roles); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Roles updated successfully",
+	})
+}
+
 // ErrorResponse структура для ошибок
 type ErrorResponse struct {
 	Error string `json:"error"`
