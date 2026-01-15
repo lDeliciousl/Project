@@ -304,10 +304,10 @@
 </head>
 <body>
     <div class="header">
-        <div class="logo">
+        <a href="/" class="logo" style="text-decoration: none;">
             <span class="logo-icon">📚</span>
             <span>Система тестирования</span>
-        </div>
+        </a>
         <div class="user-info">
             <div class="avatar">
                 <%= user.avatarLetter || user.name.charAt(0).toUpperCase() %>
@@ -450,6 +450,10 @@
                                     <span>📖</span>
                                     Перейти к курсу
                                 </a>
+                                <button class="btn btn-outline" style="border-color: #f56565; color: #f56565;" onclick="unenrollFromCourse('<%= course.id %>')">
+                                    <span>✕</span>
+                                    Отписаться
+                                </button>
                             </div>
                         </div>
                     <% }); %>
@@ -465,6 +469,29 @@
     </div>
     
     <script>
+        const userId = '<%= user.id %>';
+        
+        // Функция отписки от курса
+        async function unenrollFromCourse(courseId) {
+            if (!confirm('Вы уверены, что хотите отписаться от этого курса?')) return;
+            
+            try {
+                const response = await fetch(`/api/courses/${courseId}/enroll/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    const error = await response.json();
+                    alert('Ошибка при отписке: ' + (error.error || 'Попробуйте позже'));
+                }
+            } catch (error) {
+                alert('Ошибка сети: ' + error.message);
+            }
+        }
+        
         // Обработка форм записи на курсы
         document.querySelectorAll('form[action*="/enroll"]').forEach(form => {
             form.addEventListener('submit', async function(e) {

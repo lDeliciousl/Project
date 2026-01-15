@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; color: #333; }
+        .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
+        .nav-links { display: flex; gap: 10px; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn:hover { background: #cbd5e0; }
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+        .page-title { font-size: 24px; margin-bottom: 20px; }
+        .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
+        .breadcrumb a { color: #667eea; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .score-card { text-align: center; padding: 40px; }
+        .score-value { font-size: 64px; font-weight: bold; color: #667eea; }
+        .score-label { font-size: 18px; color: #718096; margin-top: 10px; }
+        .score-details { display: flex; justify-content: center; gap: 40px; margin-top: 30px; }
+        .score-detail { text-align: center; }
+        .score-detail-value { font-size: 24px; font-weight: bold; }
+        .score-detail-label { font-size: 12px; color: #718096; }
+        .score-good .score-value { color: #48bb78; }
+        .score-medium .score-value { color: #ed8936; }
+        .score-bad .score-value { color: #f56565; }
+        .questions-list { display: grid; gap: 20px; }
+        .question-card { background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e2e8f0; }
+        .question-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .question-number { background: #667eea; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .question-status { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .question-status.correct { background: #48bb78; color: white; }
+        .question-status.incorrect { background: #f56565; color: white; }
+        .question-text { font-size: 16px; margin-bottom: 15px; line-height: 1.5; }
+        .options-list { display: grid; gap: 10px; }
+        .option-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: white; border-radius: 6px; border: 2px solid #e2e8f0; }
+        .option-radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+        .option-text { flex: 1; font-size: 14px; }
+        .option-item.selected { border-color: #667eea; background: #f0f4ff; }
+        .option-item.correct { border-color: #48bb78; background: #f0fff4; }
+        .option-item.incorrect { border-color: #f56565; background: #fff5f5; }
+        .option-item.correct .option-radio { background: #48bb78; color: white; border-color: #48bb78; }
+        .option-item.incorrect .option-radio { background: #f56565; color: white; border-color: #f56565; }
+        .empty-state { text-align: center; padding: 40px; color: #718096; }
+        .section-title { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <a href="/" class="logo">📚 Система тестирования</a>
+        <div class="nav-links">
+            <a href="/profile" class="nav-btn">← Мой профиль</a>
+            <a href="/" class="nav-btn">На главную</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Главная</a> / <a href="/profile">Профиль</a> / Результаты теста
+        </div>
+
+        <h1 class="page-title"><%= test.name %></h1>
+
+        <div class="card score-card <%= score >= 70 ? 'score-good' : (score >= 40 ? 'score-medium' : 'score-bad') %>">
+            <div class="score-value"><%= score %>%</div>
+            <div class="score-label">Ваш результат</div>
+            <div class="score-details">
+                <div class="score-detail">
+                    <div class="score-detail-value" style="color: #48bb78;"><%= correctAnswers %></div>
+                    <div class="score-detail-label">Правильных</div>
+                </div>
+                <div class="score-detail">
+                    <div class="score-detail-value" style="color: #f56565;"><%= totalQuestions - correctAnswers %></div>
+                    <div class="score-detail-label">Неправильных</div>
+                </div>
+                <div class="score-detail">
+                    <div class="score-detail-value"><%= totalQuestions %></div>
+                    <div class="score-detail-label">Всего вопросов</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="section-title">Детали ответов</h2>
+            
+            <% if (answers.length === 0) { %>
+                <div class="empty-state">
+                    <p>Нет данных об ответах</p>
+                </div>
+            <% } else { %>
+                <div class="questions-list">
+                    <% answers.forEach((answer, index) => { %>
+                        <div class="question-card">
+                            <div class="question-header">
+                                <span class="question-number">Вопрос <%= index + 1 %></span>
+                                <span class="question-status <%= answer.is_correct ? 'correct' : 'incorrect' %>">
+                                    <%= answer.is_correct ? '✓ Правильно' : '✗ Неправильно' %>
+                                </span>
+                            </div>
+                            <div class="question-text"><%= answer.question_text || 'Вопрос #' + (index + 1) %></div>
+                            
+                            <% if (answer.options && answer.options.length > 0) { %>
+                                <div class="options-list">
+                                    <% answer.options.forEach(option => { %>
+                                        <div class="option-item <%= option.is_correct ? 'correct' : '' %> <%= option.id === answer.selected_option_id && !option.is_correct ? 'incorrect' : '' %> <%= option.id === answer.selected_option_id ? 'selected' : '' %>">
+                                            <div class="option-radio">
+                                                <% if (option.is_correct) { %>✓<% } else if (option.id === answer.selected_option_id) { %>✗<% } %>
+                                            </div>
+                                            <span class="option-text"><%= option.text %></span>
+                                        </div>
+                                    <% }); %>
+                                </div>
+                            <% } else { %>
+                                <div style="color: #718096; font-size: 14px;">
+                                    <% if (answer.is_correct) { %>
+                                        ✓ Ваш ответ был правильным
+                                    <% } else { %>
+                                        ✗ Ваш ответ был неправильным
+                                    <% } %>
+                                </div>
+                            <% } %>
+                        </div>
+                    <% }); %>
+                </div>
+            <% } %>
+        </div>
+    </div>
+</body>
+</html>

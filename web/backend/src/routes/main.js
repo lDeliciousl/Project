@@ -399,6 +399,100 @@ router.get('/test/:id', async (req, res) => {
   }
 });
 
+// Страница результатов попытки теста
+router.get('/test/:testId/result/:attemptId', async (req, res) => {
+  const { userStatus, sessionData } = req;
+  
+  if (userStatus !== 'authenticated') {
+    return res.redirect('/login');
+  }
+  
+  const { testId, attemptId } = req.params;
+  const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
+  
+  try {
+    const testResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${testId}`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    const test = testResp?.data;
+    
+    if (!test || !test.id) {
+      return res.status(404).render('error', {
+        title: 'Тест не найден',
+        status: 404,
+        message: 'Запрошенный тест не существует.'
+      });
+    }
+    
+    const attemptResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/attempts/${attemptId}`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    const attempt = attemptResp?.data;
+    
+    if (!attempt) {
+      return res.status(404).render('error', {
+        title: 'Попытка не найдена',
+        status: 404,
+        message: 'Запрошенная попытка не существует.'
+      });
+    }
+    
+    const answersResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/attempts/${attemptId}/answers`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    const answers = answersResp?.data?.answers || [];
+    
+    const correctAnswers = answers.filter(a => a.is_correct).length;
+    const totalQuestions = answers.length;
+    const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+    
+    res.render('test-result', {
+      title: `Результаты - ${test.name}`,
+      user: user,
+      test: test,
+      attempt: attempt,
+      answers: answers,
+      correctAnswers: correctAnswers,
+      totalQuestions: totalQuestions,
+      score: score
+    });
+  } catch (error) {
+    console.error(`[MAIN] Ошибка при загрузке результатов теста ${testId}:`, error);
+    
+    if (error.status === 404) {
+      return res.status(404).render('error', {
+        title: 'Не найдено',
+        status: 404,
+        message: 'Запрошенные данные не существуют.'
+      });
+    }
+    
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      status: 500,
+      message: 'Не удалось загрузить результаты. Попробуйте позже.'
+    });
+  }
+});
+
 // Страница дисциплин
 router.get('/disciplines', async (req, res) => {
   const { userStatus, sessionData } = req;
@@ -482,9 +576,32 @@ router.get('/profile', async (req, res) => {
     return res.redirect('/');
   }
 
-  const user = req.sessionData?.userData || {};
-  const roles = user.roles || [];
+  const sessionUser = req.sessionData?.userData || {};
+  const roles = sessionUser.roles || [];
   const isAdmin = roles.includes('admin') || roles.includes('Админ');
+
+  // Получаем актуальное имя из API
+  let userName = sessionUser.name;
+  if (sessionUser.id) {
+    try {
+      const nameResp = await mainApiClient.requestWithRefresh({
+        endpoint: `/api/db/users/${sessionUser.id}/name`,
+        method: 'get',
+        sessionToken: req.sessionToken,
+        sessionData: req.sessionData,
+        sessionManager,
+        authApiClient,
+        res
+      });
+      if (nameResp?.data?.name) {
+        userName = nameResp.data.name;
+      }
+    } catch (err) {
+      console.warn('[PROFILE] Не удалось получить имя из API:', err.message);
+    }
+  }
+
+  const user = { ...sessionUser, name: userName };
 
   res.render('profile', {
     title: 'Мой профиль',

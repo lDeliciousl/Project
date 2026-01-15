@@ -94,8 +94,16 @@
                 <span class="info-value"><%= user.email %></span>
             </div>
             <div class="info-row">
-                <span class="info-label">Имя</span>
-                <span class="info-value"><%= user.name %></span>
+                <span class="info-label">ФИО</span>
+                <span class="info-value" id="nameDisplay">
+                    <span id="nameText"><%= user.name || 'Не указано' %></span>
+                    <button class="btn btn-sm btn-primary" style="margin-left: 10px;" onclick="showNameEdit()">✏️ Изменить</button>
+                </span>
+                <div id="nameEdit" style="display: none;">
+                    <input type="text" id="nameInput" class="form-input" value="<%= user.name || '' %>" placeholder="Введите ФИО" style="width: 250px; display: inline-block;">
+                    <button class="btn btn-sm btn-success" onclick="saveName()">💾 Сохранить</button>
+                    <button class="btn btn-sm" style="background: #e2e8f0; color: #4a5568;" onclick="cancelNameEdit()">Отмена</button>
+                </div>
             </div>
             <div class="info-row">
                 <span class="info-label">Роли</span>
@@ -149,6 +157,16 @@
             <p style="color: #718096;">Для изменения ролей обратитесь к администратору системы.</p>
         </div>
         <% } %>
+
+        <div class="section">
+            <div class="section-header">
+                <h2 class="section-title">📝 Мои попытки тестов</h2>
+                <button class="btn btn-sm btn-primary" onclick="loadAttempts()">🔄 Обновить</button>
+            </div>
+            <div id="attemptsContainer">
+                <p style="color: #718096; text-align: center;">Нажмите "Обновить" для загрузки попыток</p>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -182,6 +200,101 @@
                 alert('Ошибка сети: ' + err.message);
             }
         }
+
+        // Функции редактирования ФИО
+        function showNameEdit() {
+            document.getElementById('nameDisplay').style.display = 'none';
+            document.getElementById('nameEdit').style.display = 'block';
+            document.getElementById('nameInput').focus();
+        }
+
+        function cancelNameEdit() {
+            document.getElementById('nameDisplay').style.display = 'inline';
+            document.getElementById('nameEdit').style.display = 'none';
+        }
+
+        async function saveName() {
+            const newName = document.getElementById('nameInput').value.trim();
+            if (!newName) {
+                alert('Введите ФИО');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/users/' + userId + '/name', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                if (res.ok) {
+                    document.getElementById('nameText').textContent = newName;
+                    cancelNameEdit();
+                    // Обновляем имя в шапке профиля
+                    document.querySelector('.profile-name').textContent = newName;
+                    document.querySelector('.avatar-large').textContent = newName.charAt(0).toUpperCase();
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Не удалось обновить ФИО'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        // Загрузка попыток тестов
+        async function loadAttempts() {
+            const container = document.getElementById('attemptsContainer');
+            container.innerHTML = '<p style="color: #718096; text-align: center;">⏳ Загрузка...</p>';
+
+            try {
+                const res = await fetch('/api/users/' + userId + '/attempts');
+                
+                if (!res.ok) {
+                    throw new Error('Не удалось загрузить попытки');
+                }
+
+                const data = await res.json();
+                const attempts = data.attempts || data || [];
+
+                if (attempts.length === 0) {
+                    container.innerHTML = '<p style="color: #718096; text-align: center;">У вас пока нет попыток прохождения тестов</p>';
+                    return;
+                }
+
+                let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+                attempts.forEach(attempt => {
+                    const status = attempt.status === 'finished' ? '✅ Завершён' : '⏳ В процессе';
+                    const statusColor = attempt.status === 'finished' ? '#48bb78' : '#ed8936';
+                    const score = attempt.score !== undefined ? `${attempt.score}%` : '-';
+                    const date = attempt.started_at ? new Date(attempt.started_at).toLocaleString('ru-RU') : '-';
+                    
+                    html += `
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 15px; border: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <div style="font-weight: 600; margin-bottom: 5px;">${attempt.test_name || 'Тест #' + attempt.test_id}</div>
+                                    <div style="font-size: 12px; color: #718096;">📅 ${date}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="color: ${statusColor}; font-weight: 500;">${status}</div>
+                                    ${attempt.status === 'finished' ? `<div style="font-size: 18px; font-weight: bold; color: #333;">📊 ${score}</div>` : ''}
+                                </div>
+                            </div>
+                            ${attempt.status === 'finished' ? `<a href="/test/${attempt.test_id}/result/${attempt.id}" class="btn btn-sm btn-primary" style="margin-top: 10px;">Подробнее</a>` : ''}
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+
+            } catch (err) {
+                container.innerHTML = `<p style="color: #c53030; text-align: center;">❌ ${err.message}</p>`;
+            }
+        }
+
+        // Загружаем попытки при загрузке страницы
+        loadAttempts();
     </script>
 </body>
 </html>

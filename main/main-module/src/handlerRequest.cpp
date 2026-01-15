@@ -1989,8 +1989,20 @@ void UnenrollUserHandler(const httplib::Request& req, httplib::Response& res) {
         return;
     }
 
+    // Resolve external id to UUID (как в EnrollUserHandler)
+    const bool isSelf = (targetUserId == ctx.user_id);
+    std::string target_uuid = targetUserId;
+    if (!IsUuid(target_uuid)) {
+        target_uuid = ResolveOrCreateUserUUID(conn, targetUserId, isSelf ? ctx.email : "");
+    }
+    if (target_uuid.empty()) {
+        res.status = 404;
+        res.set_content("{\"error\": \"User not found\"}", "application/json");
+        return;
+    }
+
     const char* paramValues[2];
-    paramValues[0] = targetUserId.c_str();
+    paramValues[0] = target_uuid.c_str();
     paramValues[1] = courseId.c_str();
     PGresult* result = PQexecParams(conn,
         "DELETE FROM user_courses WHERE user_id = $1 AND course_id = $2",

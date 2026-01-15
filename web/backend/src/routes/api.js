@@ -502,28 +502,21 @@ router.get('/users/:id/courses', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/users/:id/tests', requireAuth, async (req, res) => {
+// Alias для получения попыток пользователя (используется в профиле)
+router.get('/users/:id/attempts', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.getUserTests(req.params.id, getAccessToken(req));
-    res.json(data);
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
-  }
-});
-
-router.get('/users/:id/grades', requireAuth, async (req, res) => {
-  try {
-    const data = await mainApiClient.getUserGrades(req.params.id, getAccessToken(req));
-    res.json(data);
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
-  }
-});
-
-router.get('/users/:id/roles', requireAuth, async (req, res) => {
-  try {
-    const data = await mainApiClient.getUserRoles(req.params.id, getAccessToken(req));
-    res.json(data);
+    // Преобразуем формат для удобства использования в UI
+    const tests = data.tests || [];
+    const attempts = tests.map(t => ({
+      id: t.attempt_id,
+      test_id: t.id,
+      test_name: t.name,
+      score: t.max_score > 0 ? Math.round((t.score / t.max_score) * 100) : 0,
+      status: t.completed ? 'finished' : 'in_progress',
+      started_at: t.date
+    }));
+    res.json({ attempts });
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
