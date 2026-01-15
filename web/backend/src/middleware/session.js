@@ -1,5 +1,6 @@
 const sessionManager = require('../utils/session');
 const authApiClient = require('../utils/authApiClient');
+const mainApiClient = require('../utils/mainApiClient');
 
 async function sessionMiddleware(req, res, next) {
   const sessionToken = req.cookies.session_token;
@@ -58,6 +59,22 @@ async function sessionMiddleware(req, res, next) {
           }
         );
         
+        // Синхронизируем пользователя с main-module
+        if (userData && verifyResponse.access_token) {
+          try {
+            await mainApiClient.addUser({
+              user_id: userData.id,
+              email: userData.email,
+              full_name: userData.name,
+              roles: `{${userData.roles.join(',')}}`
+            }, verifyResponse.access_token);
+            console.log('[SESSION] Пользователь синхронизирован с main-module:', userData.email);
+          } catch (syncError) {
+            console.warn('[SESSION] Ошибка синхронизации с main-module:', syncError.message || syncError);
+            // Не прерываем авторизацию при ошибке синхронизации
+          }
+        }
+
         // Обновляем данные в запросе
         req.userStatus = 'authenticated';
         req.sessionData = await sessionManager.getSession(sessionToken);
@@ -76,6 +93,34 @@ async function sessionMiddleware(req, res, next) {
     } catch (error) {
       // Ошибка при проверке - продолжаем с текущим статусом
       console.warn('[SESSION] Ошибка при проверке loginToken:', error.message || error);
+    }
+  }
+
+  // Дополнительная синхронизация для авторизованных пользователей (если еще не синхронизирован)
+  if (sessionData.status === 'authenticated' && sessionData.accessToken && sessionData.userData) {
+    console.log('[SESSION] Проверка синхронизации для пользователя:', sessionData.userData.email);
+    try {
+      // Проверяем, есть ли пользователь в main-module
+      const userExists = await mainApiClient.getUsers(sessionData.accessToken)
+        .then(users => {
+          const userList = users.users || users;
+          return userList && userList.some(user => user.id === sessionData.userData.id);
+        })
+        .catch(() => false);
+      
+      if (!userExists) {
+        // Синхронизируем пользователя с main-module
+        await mainApiClient.addUser({
+          user_id: sessionData.userData.id,
+          email: sessionData.userData.email,
+          full_name: sessionData.userData.name,
+          roles: `{${sessionData.userData.roles.join(',')}}`
+        }, sessionData.accessToken);
+        console.log('[SESSION] Пользователь синхронизирован с main-module:', sessionData.userData.email);
+      }
+    } catch (syncError) {
+      console.warn('[SESSION] Ошибка синхронизации с main-module:', syncError.message || syncError);
+      // Не прерываем работу при ошибке синхронизации
     }
   }
 

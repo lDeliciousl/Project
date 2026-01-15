@@ -400,10 +400,14 @@ router.get('/student/:studentId/results', requireTeacher, async (req, res) => {
   const studentId = req.params.studentId;
   
   try {
-    // Получаем информацию о студенте
-    const student = await apiRequest(req, `/api/db/users/${studentId}`);
+    // Получаем всех пользователей и находим нужного студента
+    const usersResponse = await apiRequest(req, '/api/db/users');
+    const users = Array.isArray(usersResponse) ? usersResponse : (usersResponse && usersResponse.users ? usersResponse.users : []);
     
-    if (!student || !student.id) {
+    // Ищем студента по ID
+    const student = users.find(user => user.id === studentId);
+    
+    if (!student) {
       return res.status(404).render('error', {
         title: 'Студент не найден',
         statusCode: 404,
@@ -485,6 +489,88 @@ router.get('/students', requireTeacher, async (req, res) => {
       title: 'Ошибка',
       statusCode: 500,
       message: 'Не удалось загрузить список студентов.'
+    });
+  }
+});
+
+// Страница ответов студента на тест
+router.get('/test/:testId/student/:studentId/answers', requireTeacher, async (req, res) => {
+  const { testId, studentId } = req.params;
+  
+  try {
+    // Получаем информацию о студенте
+    const usersResponse = await apiRequest(req, '/api/db/users');
+    const users = Array.isArray(usersResponse) ? usersResponse : (usersResponse && usersResponse.users ? usersResponse.users : []);
+    const student = users.find(user => user.id === studentId);
+    
+    if (!student) {
+      return res.status(404).render('error', {
+        title: 'Студент не найден',
+        statusCode: 404,
+        message: 'Запрошенный студент не существует.'
+      });
+    }
+    
+    // Получаем информацию о тесте
+    const test = await apiRequest(req, `/api/tests/${testId}`);
+    
+    if (!test || !test.id) {
+      return res.status(404).render('error', {
+        title: 'Тест не найден',
+        statusCode: 404,
+        message: 'Запрошенный тест не существует.'
+      });
+    }
+    
+    // Получаем попытку студента
+    const attempts = await apiRequest(req, `/api/db/users/${studentId}/tests`);
+    console.log(`[Teacher] Student ${studentId} attempts:`, attempts);
+    const studentAttempts = attempts?.tests || [];
+    console.log(`[Teacher] Looking for test ${testId} in ${studentAttempts.length} attempts`);
+    console.log(`[Teacher] Available test IDs:`, studentAttempts.map(a => ({ id: a.id, name: a.name, attempt_id: a.attempt_id })));
+    const attempt = studentAttempts.find(a => a.id === testId);
+    console.log(`[Teacher] Found attempt:`, attempt);
+    
+    if (!attempt) {
+      return res.status(404).render('error', {
+        title: 'Попытка не найдена',
+        statusCode: 404,
+        message: 'Студент не проходил этот тест.'
+      });
+    }
+    
+    // Получаем ответы студента
+    const answersResponse = await apiRequest(req, `/api/attempts/${attempt.attempt_id}/answers`);
+    const answers = answersResponse?.answers || [];
+    
+    // Получаем информацию о курсе если нужно
+    let course = null;
+    if (test.course_id) {
+      try {
+        course = await apiRequest(req, `/api/courses/${test.course_id}`);
+      } catch (err) {
+        console.warn('Не удалось получить информацию о курсе:', err.message);
+      }
+    }
+    
+    // Считаем статистику
+    const correctAnswers = answers.filter(a => a.is_correct).length;
+    
+    res.render('test-answers', {
+      title: `Ответы студента - ${test.name}`,
+      student: student,
+      test: test,
+      course: course,
+      attempt: attempt,
+      answers: answers,
+      correctAnswers: correctAnswers
+    });
+  } catch (error) {
+    console.error(`[Teacher] Error loading test answers:`, error);
+    res.status(500).render('error', {
+      title: 'Ошибка',
+      statusCode: 500,
+      message: 'Не удалось загрузить ответы студента.'
     });
   }
 });
