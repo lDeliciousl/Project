@@ -25,6 +25,7 @@ type AuthService interface {
 	RefreshTokens(ctx context.Context, refreshToken string) (*models.TokenPair, error)
 	Logout(ctx context.Context, refreshToken string) error
 	GetUserByID(ctx context.Context, userID string) (*models.User, error)
+	GetAllUsers(ctx context.Context) ([]*models.UserData, error)
 	UpdateUserRoles(ctx context.Context, userID string, roles []string) error
 }
 
@@ -621,6 +622,23 @@ func generateRandomCode(length int) string {
 // GetUserByID получает пользователя по ID
 func (s *authService) GetUserByID(ctx context.Context, userID string) (*models.User, error) {
 	return s.userRepo.GetUserByID(ctx, userID)
+}
+
+// GetAllUsers получает список всех пользователей
+func (s *authService) GetAllUsers(ctx context.Context) ([]*models.UserData, error) {
+	users, err := s.userRepo.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all users: %w", err)
+	}
+
+	// Конвертируем в UserData для ответа
+	var usersData []*models.UserData
+	for _, user := range users {
+		userData := user.ConvertToUserData()
+		usersData = append(usersData, &userData)
+	}
+
+	return usersData, nil
 }
 
 // UpdateUserRoles обновляет роли пользователя

@@ -15,6 +15,7 @@ import (
 
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/configs"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/handlers"
+	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/middleware"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/repository"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/internal/services"
 	"github.com/lDeliciousl/Project/tree/auth-module/auth/pkg/jwt"
@@ -66,6 +67,13 @@ func main() {
 		oauthManager,
 	)
 
+	// 4. Инициализируем сервис токенов для middleware
+	tokenService := services.NewTokenService(
+		jwtService,
+		userRepo,
+		sessionRepo,
+	)
+
 	// 5. Инициализируем обработчики
 	authHandler := handlers.NewAuthHandler(authService)
 
@@ -74,11 +82,7 @@ func main() {
 	router := gin.Default()
 
 	// 7. Настраиваем маршруты
-	setupRoutes(router, authHandler)
-
-	// 8. Настраиваем статические файлы
-	//router.LoadHTMLGlob("web/templates/*")
-	//router.Static("/static", "./web/static")
+	setupRoutes(router, authHandler, tokenService)
 
 	// 9. Запускаем сервер
 	server := &http.Server{
@@ -140,7 +144,7 @@ func connectToMongoDB(uri string, timeout time.Duration) (*mongo.Client, error) 
 }
 
 // setupRoutes настраивает маршруты
-func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler) {
+func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler, tokenService services.TokenService) {
 	// Health check
 	router.GET("/health", handler.HealthCheck)
 
@@ -168,7 +172,8 @@ func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler) {
 
 			// Управление пользователями
 			auth.GET("/users/:user_id", handler.GetUserInfo)
-			auth.PUT("/users/:user_id/roles", handler.UpdateUserRoles)
+			auth.PUT("/users/:user_id/roles", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin", "Администратор"), handler.UpdateUserRoles)
+			auth.GET("/users", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin", "Администратор"), handler.GetAllUsers)
 
 			// HTML страницы
 			//auth.GET("/success", func(c *gin.Context) {

@@ -396,6 +396,20 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 	})
 }
 
+// GetAllUsers получает список всех пользователей (только для администраторов)
+func (h *AuthHandler) GetAllUsers(c *gin.Context) {
+	users, err := h.authService.GetAllUsers(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"users":  users,
+	})
+}
+
 // ErrorResponse структура для ошибок
 type ErrorResponse struct {
 	Error string `json:"error"`
