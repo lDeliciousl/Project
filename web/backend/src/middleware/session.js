@@ -70,7 +70,7 @@ async function sessionMiddleware(req, res, next) {
               user_id: userData.id,
               email: userData.email,
               full_name: userData.name,
-              roles: `{${userData.roles.join(',')}}`
+              roles: JSON.stringify(userData.roles)
             }, verifyResponse.access_token);
             console.log('[SESSION] Пользователь синхронизирован с main-module:', userData.email);
           } catch (syncError) {
@@ -122,7 +122,7 @@ async function sessionMiddleware(req, res, next) {
             user_id: sessionData.userData.id,
             email: sessionData.userData.email,
             full_name: sessionData.userData.name,
-            roles: `{${sessionData.userData.roles.join(',')}}`
+            roles: JSON.stringify(sessionData.userData.roles)
           }, sessionData.accessToken),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Main module timeout during sync')), 3000)
