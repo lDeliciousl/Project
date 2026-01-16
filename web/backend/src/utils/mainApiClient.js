@@ -301,6 +301,13 @@ class MainApiClient {
   }
 
   /**
+   * Создать ответ в попытке
+   */
+  async createAnswer(attemptId, questionId, optionId, accessToken) {
+    return this.request(`/api/attempts/${attemptId}/answers`, 'post', { question_id: questionId, option_id: optionId }, accessToken);
+  }
+
+  /**
    * Обновить ответ в попытке
    */
   async updateAnswer(attemptId, answerId, optionId, accessToken) {

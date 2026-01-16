@@ -166,8 +166,6 @@
             color: #718096;
             margin-top: 5px;
         }
-        .status-active { background: #d4edda; color: #155724; }
-        .status-completed { background: #f8d7da; color: #721c24; }
         .no-courses {
             text-align: center;
             color: #888;
@@ -325,30 +323,12 @@
             <span>Система тестирования</span>
         </div>
         <div class="user-info">
-            <div class="notifications-container" id="notificationsContainer">
-                <div class="notifications-icon" onclick="toggleNotifications()">
-                    🔔
-                    <span class="notifications-count" id="notificationsCount">0</span>
-                </div>
-                <div class="notifications-dropdown" id="notificationsDropdown">
-                    <div class="notifications-header">
-                        <h4>Уведомления</h4>
-                        <button onclick="clearAllNotifications()" class="clear-btn">Очистить</button>
-                    </div>
-                    <div class="notifications-list" id="notificationsList">
-                        <div class="no-notifications">Нет уведомлений</div>
-                    </div>
-                    <div class="notifications-footer">
-                        <a href="/notifications" class="view-all-btn">Все уведомления</a>
-                    </div>
-                </div>
-            </div>
-            <div class="avatar">
-                <%= user.avatarLetter || user.name.charAt(0).toUpperCase() %>
-            </div>
             <div class="user-details">
                 <div class="user-name"><strong><%= user.name %></strong></div>
                 <div class="user-email"><%= user.email %></div>
+            </div>
+            <div class="avatar">
+                <%= user.avatarLetter || user.name.charAt(0).toUpperCase() %>
             </div>
             <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
             <a href="/teacher" class="confirm-btn" style="background: #48bb78;">📝 Панель преподавателя</a>
@@ -377,13 +357,10 @@
                     <a href="/course/<%= course.id %>" class="course-card">
                         <div class="course-title"><%= course.name %></div>
                         <div class="course-desc"><%= course.description || 'Нет описания' %></div>
-                        <div class="course-status <%= course.active ? 'status-active' : 'status-completed' %>">
-                            <%= course.active ? 'Активна' : 'Завершена' %>
-                        </div>
                         
                         <% if (course.progress !== undefined) { %>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="<%= 'width: ' + course.progress + '%;' %>"></div>
+                                <div class="progress-fill" style="width: <%= course.progress %>%;"></div>
                             </div>
                             <div class="progress-text">
                                 Прогресс: <%= course.progress %>%

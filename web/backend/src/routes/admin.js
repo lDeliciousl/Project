@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authApiClient = require('../utils/authApiClient');
+const { getActualUserName } = require('../utils/userNameUtils');
 
 // Middleware для проверки роли администратора
 function requireAdmin(req, res, next) {
@@ -21,6 +22,12 @@ function requireAdmin(req, res, next) {
 
 // Страница управления пользователями
 router.get('/users', requireAdmin, async (req, res) => {
+  // Получаем актуальное имя пользователя
+  const user = req.user || {};
+  if (req.sessionData?.userData?.id) {
+    req.user.name = await getActualUserName(req, req.sessionData.userData.id);
+  }
+  
   try {
     // Получаем токен из сессии
     const accessToken = req.sessionData?.accessToken;

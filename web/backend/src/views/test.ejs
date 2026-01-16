@@ -325,16 +325,45 @@
         
         <!-- Начальный экран -->
         <div id="startScreen">
-            <div class="question-card" style="text-align: center;">
-                <h2 style="margin-bottom: 20px;">Готовы начать тест?</h2>
-                <p style="color: #666; margin-bottom: 30px;">
-                    После начала теста вы сможете отвечать на вопросы последовательно. 
-                    Вы можете вернуться к предыдущим вопросам.
-                </p>
-                <button class="btn btn-primary" onclick="startTest()">Начать тест</button>
-                <br><br>
-                <a href="javascript:history.back()" class="btn btn-secondary">← Вернуться</a>
-            </div>
+            <% if (existingAttempt && existingAttempt.status === 'completed') { %>
+                <!-- Тест уже пройден -->
+                <div class="question-card" style="text-align: center;">
+                    <h2 style="margin-bottom: 20px; color: #28a745;">✅ Тест уже пройден</h2>
+                    <div class="result-score" style="font-size: 48px; color: #667eea; margin: 20px 0;">
+                        <%= existingAttempt.score %>/<%= existingAttempt.max_score %>
+                    </div>
+                    <p style="color: #666; margin-bottom: 30px;">
+                        Вы уже прошли этот тест. Повторное прохождение недоступно.
+                    </p>
+                    <a href="/test/<%= test.id %>/result/<%= existingAttempt.id %>" class="btn btn-primary">Посмотреть результаты</a>
+                    <br><br>
+                    <a href="javascript:history.back()" class="btn btn-secondary">← Вернуться</a>
+                </div>
+            <% } else if (existingAttempt && existingAttempt.status === 'in_progress') { %>
+                <!-- Тест в процессе -->
+                <div class="question-card" style="text-align: center;">
+                    <h2 style="margin-bottom: 20px; color: #ffc107;">⏳ Тест в процессе</h2>
+                    <p style="color: #666; margin-bottom: 30px;">
+                        У вас есть незавершённая попытка. Продолжите прохождение теста.
+                    </p>
+                    <button class="btn btn-primary" onclick="continueTest()">Продолжить тест</button>
+                    <br><br>
+                    <a href="javascript:history.back()" class="btn btn-secondary">← Вернуться</a>
+                </div>
+            <% } else { %>
+                <!-- Новая попытка -->
+                <div class="question-card" style="text-align: center;">
+                    <h2 style="margin-bottom: 20px;">Готовы начать тест?</h2>
+                    <p style="color: #666; margin-bottom: 30px;">
+                        После начала теста вы сможете отвечать на вопросы последовательно. 
+                        Вы можете вернуться к предыдущим вопросам.<br>
+                        <strong style="color: #ff4757;">Внимание: тест можно пройти только один раз!</strong>
+                    </p>
+                    <button class="btn btn-primary" onclick="startTest()">Начать тест</button>
+                    <br><br>
+                    <a href="javascript:history.back()" class="btn btn-secondary">← Вернуться</a>
+                </div>
+            <% } %>
         </div>
         
         <!-- Экран результатов -->
@@ -352,9 +381,11 @@
         const testId = '<%= test.id %>';
         const userId = '<%= user.id || "" %>';
         const totalQuestions = <%= test.questions ? test.questions.length : 0 %>;
+        const existingAttemptId = '<%= existingAttempt ? existingAttempt.id : "" %>';
+        const existingAttemptStatus = '<%= existingAttempt ? existingAttempt.status : "" %>';
         let currentQuestion = 0;
         let answers = {};
-        let attemptId = null;
+        let attemptId = existingAttemptId || null;
         
         function startTest() {
             document.getElementById('startScreen').classList.add('hidden');
@@ -370,7 +401,16 @@
                     user_id: userId
                 })
             })
-            .then(res => res.json())
+            .then(res => {
+                if (res.status === 409) {
+                    return res.json().then(data => {
+                        alert(data.error || 'Вы уже проходили этот тест');
+                        window.location.reload();
+                        throw new Error('Attempt exists');
+                    });
+                }
+                return res.json();
+            })
             .then(data => {
                 if (data.attempt_id) {
                     attemptId = data.attempt_id;
@@ -378,6 +418,12 @@
                 }
             })
             .catch(err => console.error('Error creating attempt:', err));
+        }
+        
+        function continueTest() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('testContent').classList.remove('hidden');
+            showQuestion(0);
         }
         
         function showQuestion(index) {
@@ -438,27 +484,47 @@
             }
         }
         
-        function submitTest() {
+        async function submitTest() {
+            if (!attemptId) {
+                alert('Ошибка: попытка не создана');
+                return;
+            }
+            
             document.getElementById('testContent').classList.add('hidden');
             document.getElementById('resultScreen').classList.remove('hidden');
+            document.getElementById('resultMessage').textContent = 'Сохранение ответов...';
             
-            // Отправляем результаты
-            const answersArray = Object.entries(answers).map(([questionId, optionId]) => ({
-                question_id: questionId,
-                option_id: optionId
-            }));
+            // Сохраняем каждый ответ
+            const answersArray = Object.entries(answers);
+            let savedCount = 0;
             
-            fetch('/api/tests/attempts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    test_id: testId,
-                    user_id: userId,
-                    answers: answersArray
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
+            for (const [questionId, optionId] of answersArray) {
+                try {
+                    // Создаём запись ответа
+                    const saveRes = await fetch(`/api/attempts/${attemptId}/answers`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question_id: questionId,
+                            option_id: optionId
+                        })
+                    });
+                    if (saveRes.ok) savedCount++;
+                } catch (err) {
+                    console.error('Error saving answer:', err);
+                }
+            }
+            
+            console.log(`Saved ${savedCount}/${answersArray.length} answers`);
+            
+            // Завершаем попытку
+            try {
+                const finishRes = await fetch(`/api/attempts/${attemptId}/finish`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await finishRes.json();
+                
                 const score = data.score || 0;
                 const maxScore = data.max_score || totalQuestions;
                 document.getElementById('scoreDisplay').textContent = score + '/' + maxScore;
@@ -468,14 +534,25 @@
                 if (percentage >= 90) message = 'Отлично! Превосходный результат!';
                 else if (percentage >= 70) message = 'Хорошо! Достойный результат.';
                 else if (percentage >= 50) message = 'Удовлетворительно. Есть над чем поработать.';
-                else message = 'Попробуйте ещё раз.';
+                else message = 'Не расстраивайтесь, в следующий раз получится лучше.';
                 
                 document.getElementById('resultMessage').textContent = message;
-            })
-            .catch(err => {
-                console.error('Error submitting test:', err);
-                document.getElementById('resultMessage').textContent = 'Произошла ошибка при отправке результатов.';
-            });
+                
+                // Добавляем ссылку на детальные результаты
+                const resultCard = document.querySelector('.result-card');
+                const existingLink = resultCard.querySelector('.result-details-link');
+                if (!existingLink) {
+                    const detailsLink = document.createElement('a');
+                    detailsLink.href = `/test/${testId}/result/${attemptId}`;
+                    detailsLink.className = 'btn btn-secondary result-details-link';
+                    detailsLink.style.marginLeft = '10px';
+                    detailsLink.textContent = 'Подробные результаты';
+                    resultCard.querySelector('.btn-primary').after(detailsLink);
+                }
+            } catch (err) {
+                console.error('Error finishing test:', err);
+                document.getElementById('resultMessage').textContent = 'Ошибка при завершении теста.';
+            }
         }
     </script>
 </body>

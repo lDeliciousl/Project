@@ -307,6 +307,15 @@ router.post('/attempts/:id/finish', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/attempts/:attemptId/answers', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.createAnswer(req.params.attemptId, req.body.question_id, req.body.option_id, getAccessToken(req));
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
 router.put('/attempts/:attemptId/answers/:answerId', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.updateAnswer(req.params.attemptId, req.params.answerId, req.body.option_id, getAccessToken(req));

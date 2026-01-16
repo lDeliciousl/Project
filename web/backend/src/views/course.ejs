@@ -220,9 +220,14 @@
                     <% course.tests.forEach(function(test) { %>
                         <div class="test-card">
                             <div class="test-name"><%= test.name %></div>
-                            <% if (test.completed) { %>
-                                <p><strong>Оценка:</strong> <%= test.score %>/<%= test.max_score || 100 %></p>
-                                <span class="test-status status-completed">Завершен</span>
+                            <% if (test.existingAttempt && test.existingAttempt.status === 'completed') { %>
+                                <p><strong>Оценка:</strong> <%= test.existingAttempt.score %>/<%= test.existingAttempt.max_score || 100 %></p>
+                                <span class="test-status status-completed">Тест пройден</span>
+                                <a href="/test/<%= test.id %>/result/<%= test.existingAttempt.id %>" class="test-btn" style="background: #28a745;">Посмотреть результаты</a>
+                            <% } else if (test.existingAttempt && test.existingAttempt.status === 'in_progress') { %>
+                                <p><strong>Статус:</strong> Тест в процессе</p>
+                                <span class="test-status" style="background: #fff3cd; color: #856404;">В процессе</span>
+                                <a href="/test/<%= test.id %>" class="test-btn" style="background: #ffc107;">Продолжить тест</a>
                             <% } else { %>
                                 <% const isUuid = typeof test.id === 'string' && test.id.includes('-') && test.id.length >= 32; %>
                                 <p>Тест еще не пройден</p>

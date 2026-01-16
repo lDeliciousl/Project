@@ -3,6 +3,7 @@ const router = express.Router();
 const mainApiClient = require('../utils/mainApiClient');
 const sessionManager = require('../utils/session');
 const authApiClient = require('../utils/authApiClient');
+const { getActualUserName } = require('../utils/userNameUtils');
 
 // Middleware: проверка авторизации и прав преподавателя/админа
 function requireTeacher(req, res, next) {
@@ -53,7 +54,11 @@ async function apiRequest(req, endpoint, method = 'get', data = null) {
 // ========== ПАНЕЛЬ ПРЕПОДАВАТЕЛЯ ==========
 
 router.get('/', requireTeacher, async (req, res) => {
+  // Получаем актуальное имя пользователя
   const user = req.sessionData?.userData || {};
+  if (user.id) {
+    user.name = await getActualUserName(req, user.id);
+  }
   
   try {
     let courses = [];

@@ -33,6 +33,40 @@ async function getUserCourses(req, userId) {
   }
 }
 
+// Централизованная функция получения актуального имени пользователя
+async function getActualUserName(req, userId) {
+  if (!userId || !req.sessionData?.accessToken) {
+    return req.sessionData?.userData?.name || 'Пользователь';
+  }
+  
+  try {
+    const nameResp = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/db/users/${userId}/name`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res: req.res
+    });
+    
+    const actualName = nameResp?.data?.name;
+    if (actualName) {
+      // Обновляем имя в сессии для кэширования
+      if (req.sessionData?.userData) {
+        req.sessionData.userData.name = actualName;
+      }
+      console.log(`[MAIN] Актуальное имя получено: ${actualName}`);
+      return actualName;
+    }
+  } catch (err) {
+    console.warn('[MAIN] Не удалось получить актуальное имя:', err.message);
+  }
+  
+  // Фоллбек на имя из сессии
+  return req.sessionData?.userData?.name || 'Пользователь';
+}
+
 // Главная страница
 router.get('/', async (req, res) => {
   const { userStatus, sessionData } = req;
@@ -82,7 +116,6 @@ router.get('/', async (req, res) => {
         const accessToken = sessionData?.accessToken;
         
         let courses = [];
-        let notifications = [];
         
         // Получаем данные пользователя из main модуля
         if (user.id && accessToken) {
@@ -92,19 +125,7 @@ router.get('/', async (req, res) => {
             
             // Получаем дополнительную информацию о пользователе
             try {
-              const userNameResp = await mainApiClient.requestWithRefresh({
-                endpoint: `/api/db/users/${user.id}/name`,
-                method: 'get',
-                sessionToken: req.sessionToken,
-                sessionData,
-                sessionManager,
-                authApiClient,
-                res
-              });
-              const userName = userNameResp?.data;
-              if (userName && userName.name) {
-                user.name = userName.name;
-              }
+              user.name = await getActualUserName(req, user.id);
             } catch (err) {
               console.warn(`[MAIN] Не удалось получить имя пользователя ${user.id}:`, err.message);
             }
@@ -127,25 +148,6 @@ router.get('/', async (req, res) => {
             } catch (err) {
               console.warn(`[MAIN] Не удалось получить тесты пользователя ${user.id}:`, err.message);
             }
-            
-            // Получаем уведомления пользователя
-            try {
-              const notificationsResp = await mainApiClient.requestWithRefresh({
-                endpoint: `/notification`,
-                method: 'get',
-                sessionToken: req.sessionToken,
-                sessionData,
-                sessionManager,
-                authApiClient,
-                res
-              });
-              const notificationsData = notificationsResp?.data;
-              if (notificationsData && notificationsData.notifications) {
-                notifications = notificationsData.notifications;
-              }
-            } catch (err) {
-              console.warn(`[MAIN] Не удалось получить уведомления:`, err.message);
-            }
           } catch (err) {
             console.error(`[MAIN] Ошибка при получении данных пользователя ${user.id}:`, err.message);
           }
@@ -157,7 +159,7 @@ router.get('/', async (req, res) => {
           title: 'Личный кабинет',
           user: user,
           courses: courses,
-          notifications: notifications,
+          notifications: [],
           sessionData
         });
       } catch (error) {
@@ -170,8 +172,8 @@ router.get('/', async (req, res) => {
             roles: ['student']
           },
           courses: [],
-          notifications: [],
           error: 'Не удалось загрузить данные.',
+          notifications: [],
           sessionData
         });
       }
@@ -255,6 +257,11 @@ router.get('/course/:id', async (req, res) => {
     const user = sessionData?.userData;
     const accessToken = sessionData?.accessToken;
     
+    // Получаем актуальное имя пользователя
+    if (user && user.id) {
+      user.name = await getActualUserName(req, user.id);
+    }
+    
     if (user && user.id && accessToken) {
       try {
         // Сначала пытаемся получить информацию о курсе напрямую
@@ -282,6 +289,18 @@ router.get('/course/:id', async (req, res) => {
           course = courses.find(c => c.id === courseId || c.id === parseInt(courseId));
         }
         
+        // Проверяем, записан ли пользователь на курс
+        if (user.id) {
+          try {
+            const userCourses = await getUserCourses(req, user.id);
+            const userCourseIds = new Set(userCourses.map(c => c.id));
+            course.enrolled = userCourseIds.has(courseId);
+          } catch (err) {
+            console.warn(`[MAIN] Не удалось проверить запись на курс ${courseId}:`, err.message);
+            course.enrolled = false;
+          }
+        }
+
         // Если курс найден, получаем тесты курса
         if (course) {
           try {
@@ -297,6 +316,25 @@ router.get('/course/:id', async (req, res) => {
             const testsData = testsResp?.data;
             if (testsData && testsData.tests) {
               course.tests = testsData.tests;
+              
+              // Получаем попытки для каждого теста
+              for (let test of course.tests) {
+                try {
+                  const attemptResp = await mainApiClient.requestWithRefresh({
+                    endpoint: `/api/tests/${test.id}/user-attempt`,
+                    method: 'get',
+                    sessionToken: req.sessionToken,
+                    sessionData,
+                    sessionManager,
+                    authApiClient,
+                    res
+                  });
+                  test.existingAttempt = attemptResp?.data || null;
+                } catch (err) {
+                  // Если попытки нет, оставляем null
+                  test.existingAttempt = null;
+                }
+              }
             }
           } catch (err) {
             console.warn(`[MAIN] Не удалось получить тесты для курса ${courseId}:`, err.message);
@@ -342,6 +380,11 @@ router.get('/test/:id', async (req, res) => {
   const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
   const accessToken = sessionData?.accessToken;
   
+  // Получаем актуальное имя пользователя
+  if (user.id) {
+    user.name = await getActualUserName(req, user.id);
+  }
+  
   try {
     // Получаем детали теста из main модуля
     const testResp = await mainApiClient.requestWithRefresh({
@@ -363,10 +406,29 @@ router.get('/test/:id', async (req, res) => {
       });
     }
     
+    // Проверяем существующую попытку пользователя
+    let existingAttempt = null;
+    try {
+      const attemptsResp = await mainApiClient.requestWithRefresh({
+        endpoint: `/api/tests/${testId}/user-attempt`,
+        method: 'get',
+        sessionToken: req.sessionToken,
+        sessionData,
+        sessionManager,
+        authApiClient,
+        res
+      });
+      existingAttempt = attemptsResp?.data;
+    } catch (e) {
+      // Нет попытки - это нормально
+      console.log(`[MAIN] No existing attempt for test ${testId}`);
+    }
+    
     res.render('test', {
       title: testData.name,
       user: user,
-      test: testData
+      test: testData,
+      existingAttempt: existingAttempt
     });
   } catch (error) {
     console.error(`[MAIN] Ошибка при загрузке теста ${testId}:`, error);
@@ -505,6 +567,11 @@ router.get('/disciplines', async (req, res) => {
     const user = sessionData?.userData || { name: 'Пользователь', email: 'unknown@example.com' };
     const accessToken = sessionData?.accessToken;
     
+    // Получаем актуальное имя пользователя
+    if (user.id) {
+      user.name = await getActualUserName(req, user.id);
+    }
+    
     let allCourses = [];
     let userCourses = [];
     
@@ -584,18 +651,7 @@ router.get('/profile', async (req, res) => {
   let userName = sessionUser.name;
   if (sessionUser.id) {
     try {
-      const nameResp = await mainApiClient.requestWithRefresh({
-        endpoint: `/api/db/users/${sessionUser.id}/name`,
-        method: 'get',
-        sessionToken: req.sessionToken,
-        sessionData: req.sessionData,
-        sessionManager,
-        authApiClient,
-        res
-      });
-      if (nameResp?.data?.name) {
-        userName = nameResp.data.name;
-      }
+      userName = await getActualUserName(req, sessionUser.id);
     } catch (err) {
       console.warn('[PROFILE] Не удалось получить имя из API:', err.message);
     }
