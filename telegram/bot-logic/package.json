@@ -1,7 +1,7 @@
 {
-  "name": "telegram-client",
+  "name": "bot-logic",
   "version": "1.0.0",
-  "description": "Telegram client that receives messages from Telegram API and forwards to Bot Logic",
+  "description": "Bot Logic service for Telegram module",
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
@@ -13,14 +13,15 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.64.0",
     "axios": "^1.6.2",
     "dotenv": "^16.3.1",
-    "pino": "^8.17.1"
+    "pino": "^8.17.1",
+    "redis": "^4.6.13",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@types/node-telegram-bot-api": "^0.64.2",
+    "@types/uuid": "^9.0.7",
     "typescript": "^5.3.2",
     "ts-node": "^10.9.2",
     "nodemon": "^3.0.2",
@@ -31,7 +32,7 @@
     "eslint": "^8.56.0",
     "prettier": "^3.1.1"
   },
-  "keywords": ["telegram", "bot", "testing-system"],
+  "keywords": ["telegram", "bot-logic", "testing-system"],
   "author": "Your Name",
   "license": "MIT"
 }
