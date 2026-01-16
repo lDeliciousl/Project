@@ -2114,12 +2114,22 @@ void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res
         return;
     }
 
-    // Упрощенный запрос - показываем все вопросы для авторизованных пользователей
+    // Показываем только ПОСЛЕДНЮЮ версию каждого вопроса (группировка по base_question_id)
     std::string query = R"(
+        WITH latest_versions AS (
+            SELECT COALESCE(base_question_id, id) as base_id,
+                   MAX(version) as max_version
+            FROM questions
+            WHERE COALESCE(is_deleted, FALSE) = FALSE
+            GROUP BY COALESCE(base_question_id, id)
+        )
         SELECT q.id::text, COALESCE(q.title, q.text) as title, COALESCE(q.version, 1) as version, 
                q.author_id::text, q.question_type, q.points, q.text,
-               (SELECT COUNT(*) FROM question_options WHERE question_id = q.id) as options_count
+               (SELECT COUNT(*) FROM question_options WHERE question_id = q.id) as options_count,
+               COALESCE(q.base_question_id::text, q.id::text) as base_question_id
         FROM questions q
+        JOIN latest_versions lv ON COALESCE(q.base_question_id, q.id) = lv.base_id 
+                                AND q.version = lv.max_version
         WHERE COALESCE(q.is_deleted, FALSE) = FALSE
         ORDER BY q.created_at DESC
         LIMIT 100
@@ -2148,6 +2158,7 @@ void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res
         item["points"] = PQgetisnull(result, i, 5) ? 1 : std::stoi(PQgetvalue(result, i, 5));
         item["text"] = PQgetisnull(result, i, 6) ? "" : PQgetvalue(result, i, 6);
         item["options_count"] = PQgetisnull(result, i, 7) ? 0 : std::stoi(PQgetvalue(result, i, 7));
+        item["base_question_id"] = PQgetisnull(result, i, 8) ? "" : PQgetvalue(result, i, 8);
         arr.push_back(item);
     }
     PQclear(result);
@@ -2196,13 +2207,12 @@ void GetQuestionHandler(const httplib::Request& req, httplib::Response& res) {
             WHERE (q.id = $1 OR q.base_question_id = $1) AND q.version = $2::int
         )";
     } else {
-        // Последняя версия
+        // Возвращаем ТОЧНО запрошенный вопрос по ID
         query = R"(
             SELECT q.id::text, q.title, q.text, q.question_type, q.points, q.version,
                    q.author_id::text, q.is_deleted, COALESCE(q.base_question_id::text, q.id::text) as base_id
             FROM questions q 
-            WHERE (q.id = $1 OR q.base_question_id = $1) AND q.is_deleted = FALSE
-            ORDER BY q.version DESC LIMIT 1
+            WHERE q.id = $1 AND q.is_deleted = FALSE
         )";
     }
 
@@ -2277,6 +2287,82 @@ void GetQuestionHandler(const httplib::Request& req, httplib::Response& res) {
     PQclear(optResult);
     json_response["options"] = options;
 
+    res.set_content(json_response.dump(), "application/json");
+}
+
+void GetQuestionVersionsHandler(const httplib::Request& req, httplib::Response& res) {
+    // Получение истории версий вопроса по base_question_id
+    std::string questionId = matchToString(req.matches, 1);
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    // Получаем base_question_id для данного вопроса
+    const char* baseParams[1];
+    baseParams[0] = questionId.c_str();
+    PGresult* baseResult = PQexecParams(conn,
+        "SELECT COALESCE(base_question_id::text, id::text) as base_id FROM questions WHERE id = $1",
+        1, nullptr, baseParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(baseResult) != PGRES_TUPLES_OK || PQntuples(baseResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Question not found\"}", "application/json");
+        PQclear(baseResult);
+        return;
+    }
+
+    std::string baseQuestionId = PQgetvalue(baseResult, 0, 0);
+    PQclear(baseResult);
+
+    // Получаем все версии этого вопроса
+    const char* versionsParams[1];
+    versionsParams[0] = baseQuestionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT q.id::text, q.version, q.title, q.text, q.question_type, q.points, "
+        "       q.created_at, q.is_deleted, "
+        "       (SELECT COUNT(*) FROM test_questions WHERE question_id = q.id) as tests_count "
+        "FROM questions q "
+        "WHERE q.id = $1 OR q.base_question_id = $1 "
+        "ORDER BY q.version ASC",
+        1, nullptr, versionsParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Query failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    json_response["base_question_id"] = baseQuestionId;
+    nlohmann::json versions = nlohmann::json::array();
+    
+    int rows = PQntuples(result);
+    for (int i = 0; i < rows; i++) {
+        nlohmann::json ver;
+        ver["id"] = PQgetvalue(result, i, 0);
+        ver["version"] = std::stoi(PQgetvalue(result, i, 1));
+        ver["title"] = PQgetisnull(result, i, 2) ? "" : PQgetvalue(result, i, 2);
+        ver["text"] = PQgetisnull(result, i, 3) ? "" : PQgetvalue(result, i, 3);
+        ver["type"] = PQgetisnull(result, i, 4) ? "single_choice" : PQgetvalue(result, i, 4);
+        ver["points"] = PQgetisnull(result, i, 5) ? 1 : std::stoi(PQgetvalue(result, i, 5));
+        ver["created_at"] = PQgetisnull(result, i, 6) ? "" : PQgetvalue(result, i, 6);
+        std::string deleted = PQgetisnull(result, i, 7) ? "f" : PQgetvalue(result, i, 7);
+        ver["is_deleted"] = (deleted == "t" || deleted == "true");
+        ver["tests_count"] = PQgetisnull(result, i, 8) ? 0 : std::stoi(PQgetvalue(result, i, 8));
+        versions.push_back(ver);
+    }
+    PQclear(result);
+
+    json_response["versions"] = versions;
+    json_response["total_versions"] = rows;
     res.set_content(json_response.dump(), "application/json");
 }
 
@@ -2516,6 +2602,119 @@ void UpdateQuestionHandler(const httplib::Request& req, httplib::Response& res) 
 void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res) {
     // По ТЗ: soft delete (is_deleted = true), только если вопрос НЕ используется в тестах
     std::string questionId = matchToString(req.matches, 1);
+    std::cout << "[DeleteQuestion] Attempting to delete question: " << questionId << std::endl;
+    
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        std::cerr << "[DeleteQuestion] Database not connected" << std::endl;
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    // Resolve user UUID
+    std::string ctx_uuid = ctx.user_id;
+    if (!IsUuid(ctx_uuid)) {
+        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
+    }
+    std::cout << "[DeleteQuestion] User UUID: " << ctx_uuid << std::endl;
+
+    // Получаем информацию о вопросе
+    const char* checkParams[1];
+    checkParams[0] = questionId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT q.author_id::text, COALESCE(q.base_question_id::text, q.id::text) as base_id, q.version "
+        "FROM questions q WHERE q.id = $1 AND q.is_deleted = FALSE",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        std::cerr << "[DeleteQuestion] Question not found or already deleted: " << questionId << std::endl;
+        res.status = 404;
+        nlohmann::json err;
+        err["error"] = "Question not found or already deleted";
+        err["question_id"] = questionId;
+        res.set_content(err.dump(), "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string author_id = PQgetisnull(checkResult, 0, 0) ? "" : PQgetvalue(checkResult, 0, 0);
+    std::string baseQuestionId = PQgetvalue(checkResult, 0, 1);
+    int version = std::stoi(PQgetvalue(checkResult, 0, 2));
+    PQclear(checkResult);
+    
+    std::cout << "[DeleteQuestion] Author: " << author_id << ", Base: " << baseQuestionId << ", Version: " << version << std::endl;
+
+    // По ТЗ: свои вопросы по умолчанию, чужие требуют quest:del
+    bool isOwner = (author_id == ctx_uuid);
+    std::cout << "[DeleteQuestion] Is owner: " << (isOwner ? "yes" : "no") << std::endl;
+    if (!isOwner) {
+        if (!CheckAccess(ctx, "quest:del", res)) {
+            std::cerr << "[DeleteQuestion] Access denied - not owner and no quest:del permission" << std::endl;
+            return;
+        }
+    }
+
+    // По ТЗ: нельзя удалить если вопрос используется в тестах
+    const char* usageParams[1];
+    usageParams[0] = baseQuestionId.c_str();
+    PGresult* usageCheck = PQexecParams(conn,
+        "SELECT t.name, tq.question_id::text FROM test_questions tq "
+        "JOIN questions q ON tq.question_id = q.id "
+        "JOIN tests t ON tq.test_id = t.id "
+        "WHERE COALESCE(q.base_question_id::text, q.id::text) = $1 LIMIT 5",
+        1, nullptr, usageParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(usageCheck) == PGRES_TUPLES_OK && PQntuples(usageCheck) > 0) {
+        std::string testName = PQgetvalue(usageCheck, 0, 0);
+        std::cerr << "[DeleteQuestion] Cannot delete - used in test: " << testName << std::endl;
+        res.status = 409;  // Conflict
+        nlohmann::json err;
+        err["error"] = "Невозможно удалить вопрос: он используется в тестах";
+        err["details"] = "Сначала удалите вопрос из всех тестов";
+        err["used_in_test"] = testName;
+        res.set_content(err.dump(), "application/json");
+        PQclear(usageCheck);
+        return;
+    }
+    PQclear(usageCheck);
+
+    // Soft delete: помечаем все версии вопроса как удалённые
+    const char* deleteParams[1];
+    deleteParams[0] = baseQuestionId.c_str();
+    PGresult* result = PQexecParams(conn,
+        "UPDATE questions SET is_deleted = TRUE "
+        "WHERE id = $1 OR base_question_id = $1 "
+        "RETURNING id::text",
+        1, nullptr, deleteParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+        std::cerr << "[DeleteQuestion] Delete failed: " << PQerrorMessage(conn) << std::endl;
+        res.status = 500;
+        res.set_content("{\"error\": \"Delete failed\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+    
+    int deletedCount = PQntuples(result);
+    std::cout << "[DeleteQuestion] Successfully deleted " << deletedCount << " version(s)" << std::endl;
+    PQclear(result);
+    
+    nlohmann::json response;
+    response["status"] = "success";
+    response["deleted_versions"] = deletedCount;
+    res.set_content(response.dump(), "application/json");
+}
+
+void DeleteQuestionVersionHandler(const httplib::Request& req, httplib::Response& res) {
+    // Удаление ТОЛЬКО ОДНОЙ версии вопроса (soft delete)
+    std::string questionId = matchToString(req.matches, 1);
+    std::cout << "[DeleteQuestionVersion] Deleting single version: " << questionId << std::endl;
+    
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
 
@@ -2527,7 +2726,6 @@ void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res) 
         return;
     }
 
-    // Resolve user UUID
     std::string ctx_uuid = ctx.user_id;
     if (!IsUuid(ctx_uuid)) {
         ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
@@ -2537,7 +2735,7 @@ void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res) 
     const char* checkParams[1];
     checkParams[0] = questionId.c_str();
     PGresult* checkResult = PQexecParams(conn,
-        "SELECT q.author_id::text, COALESCE(q.base_question_id::text, q.id::text) as base_id "
+        "SELECT q.author_id::text, COALESCE(q.base_question_id::text, q.id::text) as base_id, q.version "
         "FROM questions q WHERE q.id = $1 AND q.is_deleted = FALSE",
         1, nullptr, checkParams, nullptr, nullptr, 0);
 
@@ -2550,47 +2748,70 @@ void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res) 
 
     std::string author_id = PQgetisnull(checkResult, 0, 0) ? "" : PQgetvalue(checkResult, 0, 0);
     std::string baseQuestionId = PQgetvalue(checkResult, 0, 1);
+    int version = std::stoi(PQgetvalue(checkResult, 0, 2));
     PQclear(checkResult);
 
-    // По ТЗ: свои вопросы по умолчанию, чужие требуют quest:del
+    // Проверка прав
     bool isOwner = (author_id == ctx_uuid);
     if (!isOwner) {
         if (!CheckAccess(ctx, "quest:del", res)) return;
     }
 
-    // По ТЗ: нельзя удалить если вопрос используется в тестах (даже удалённых)
+    // Проверяем, используется ли КОНКРЕТНО ЭТА версия в тестах
     const char* usageParams[1];
-    usageParams[0] = baseQuestionId.c_str();
+    usageParams[0] = questionId.c_str();
     PGresult* usageCheck = PQexecParams(conn,
-        "SELECT 1 FROM test_questions tq "
-        "JOIN questions q ON tq.question_id = q.id "
-        "WHERE COALESCE(q.base_question_id::text, q.id::text) = $1 LIMIT 1",
+        "SELECT t.name FROM test_questions tq "
+        "JOIN tests t ON tq.test_id = t.id "
+        "WHERE tq.question_id = $1 LIMIT 1",
         1, nullptr, usageParams, nullptr, nullptr, 0);
 
     if (PQresultStatus(usageCheck) == PGRES_TUPLES_OK && PQntuples(usageCheck) > 0) {
-        res.status = 409;  // Conflict
-        res.set_content("{\"error\": \"Cannot delete question: it is used in tests\"}", "application/json");
+        std::string testName = PQgetvalue(usageCheck, 0, 0);
+        res.status = 409;
+        nlohmann::json err;
+        err["error"] = "Невозможно удалить эту версию: она используется в тесте";
+        err["used_in_test"] = testName;
+        res.set_content(err.dump(), "application/json");
         PQclear(usageCheck);
         return;
     }
     PQclear(usageCheck);
 
-    // Soft delete: помечаем все версии вопроса как удалённые
-    const char* deleteParams[1];
-    deleteParams[0] = baseQuestionId.c_str();
+    // Soft delete только этой версии
     PGresult* result = PQexecParams(conn,
-        "UPDATE questions SET is_deleted = TRUE "
-        "WHERE id = $1 OR base_question_id = $1",
-        1, nullptr, deleteParams, nullptr, nullptr, 0);
+        "UPDATE questions SET is_deleted = TRUE WHERE id = $1 RETURNING id::text",
+        1, nullptr, usageParams, nullptr, nullptr, 0);
 
-    if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+    if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         res.status = 500;
         res.set_content("{\"error\": \"Delete failed\"}", "application/json");
         PQclear(result);
         return;
     }
     PQclear(result);
-    res.set_content("{\"status\": \"success\"}", "application/json");
+
+    // Находим другую версию для редиректа
+    const char* redirectParams[2];
+    redirectParams[0] = baseQuestionId.c_str();
+    redirectParams[1] = questionId.c_str();
+    PGresult* redirectResult = PQexecParams(conn,
+        "SELECT id::text FROM questions "
+        "WHERE (id = $1 OR base_question_id = $1) AND id != $2 AND is_deleted = FALSE "
+        "ORDER BY version DESC LIMIT 1",
+        2, nullptr, redirectParams, nullptr, nullptr, 0);
+
+    nlohmann::json response;
+    response["status"] = "success";
+    response["deleted_version"] = version;
+    
+    if (PQresultStatus(redirectResult) == PGRES_TUPLES_OK && PQntuples(redirectResult) > 0) {
+        response["redirect_to"] = PQgetvalue(redirectResult, 0, 0);
+    }
+    PQclear(redirectResult);
+
+    std::cout << "[DeleteQuestionVersion] Successfully deleted version " << version << std::endl;
+    res.set_content(response.dump(), "application/json");
 }
 
 void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& res) {

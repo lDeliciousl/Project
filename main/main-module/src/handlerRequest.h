@@ -75,9 +75,11 @@ void ActivateTestHandler(const httplib::Request& req, httplib::Response& res);
 // Questions API
 void GetQuestionsListHandler(const httplib::Request& req, httplib::Response& res);
 void GetQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void GetQuestionVersionsHandler(const httplib::Request& req, httplib::Response& res);
 void CreateQuestionHandler(const httplib::Request& req, httplib::Response& res);
 void UpdateQuestionHandler(const httplib::Request& req, httplib::Response& res);
 void DeleteQuestionHandler(const httplib::Request& req, httplib::Response& res);
+void DeleteQuestionVersionHandler(const httplib::Request& req, httplib::Response& res);
 
 // Test questions management
 void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& res);
