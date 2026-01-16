@@ -75,9 +75,11 @@ int main() {
 
     // Questions API
     server.Get("/api/questions", GetQuestionsListHandler);
+    server.Get(R"(/api/questions/([^/]+)/versions)", GetQuestionVersionsHandler);
     server.Get(R"(/api/questions/([^/]+))", GetQuestionHandler);
     server.Post("/api/questions", CreateQuestionHandler);
     server.Put(R"(/api/questions/([^/]+))", UpdateQuestionHandler);
+    server.Delete(R"(/api/questions/([^/]+)/version)", DeleteQuestionVersionHandler);
     server.Delete(R"(/api/questions/([^/]+))", DeleteQuestionHandler);
 
     // Attempts API
