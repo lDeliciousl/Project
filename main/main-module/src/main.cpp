@@ -85,9 +85,13 @@ int main() {
     // Attempts API
     server.Get(R"(/api/attempts/([^/]+))", GetAttemptHandler);
     server.Post(R"(/api/attempts/([^/]+)/finish)", FinishAttemptHandler);
+    server.Post(R"(/api/attempts/([^/]+)/answers)", CreateAnswerHandler);
     server.Put(R"(/api/attempts/([^/]+)/answers/([^/]+))", UpdateAnswerHandler);
     server.Delete(R"(/api/attempts/([^/]+)/answers/([^/]+))", DeleteAnswerHandler);
     server.Get(R"(/api/attempts/([^/]+)/answers)", GetAttemptAnswersHandler);
+
+    // User attempt for test
+    server.Get(R"(/api/tests/([^/]+)/user-attempt)", GetUserAttemptForTestHandler);
 
     // Test results API (по ТЗ: test:answer:read)
     server.Get(R"(/api/tests/([^/]+)/users)", GetTestUsersHandler);

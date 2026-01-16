@@ -269,12 +269,12 @@ std::string Database::create_test(const std::string& name, const std::string& de
     return id;
 }
 
-std::string Database::add_question(const std::string& test_id, const std::string& text, const std::string& type, int points) {
+std::string Database::add_question(const std::string& title, const std::string& text, const std::string& type, int points, const std::string& author_id) {
     if (!pImpl->connection) return "";
     
     std::stringstream query;
-    query << "INSERT INTO questions (test_id, text, question_type, points) VALUES ('"
-          << test_id << "', '" << text << "', '" << type << "', " << points << ") RETURNING id";
+    query << "INSERT INTO questions (title, text, question_type, points, author_id) VALUES ('"
+          << title << "', '" << text << "', '" << type << "', " << points << ", '" << author_id << "') RETURNING id";
           
     PGresult* result = PQexec(pImpl->connection, query.str().c_str());
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {

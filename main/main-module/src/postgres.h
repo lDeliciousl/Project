@@ -80,7 +80,7 @@ public:
 
     // Новые функции для управления тестами
     std::string create_test(const std::string& name, const std::string& description, const std::string& course_id, const std::string& created_by);
-    std::string add_question(const std::string& test_id, const std::string& text, const std::string& type, int points);
+    std::string add_question(const std::string& title, const std::string& text, const std::string& type, int points, const std::string& author_id);
     std::string add_option(const std::string& question_id, const std::string& text, bool is_correct);
     Test get_test_details(const std::string& test_id);
     std::vector<Test> get_all_tests();

@@ -90,7 +90,9 @@ void UpdateQuestionsOrderHandler(const httplib::Request& req, httplib::Response&
 void GetAttemptHandler(const httplib::Request& req, httplib::Response& res);
 void GetAttemptAnswersHandler(const httplib::Request& req, httplib::Response& res);
 void FinishAttemptHandler(const httplib::Request& req, httplib::Response& res);
+void CreateAnswerHandler(const httplib::Request& req, httplib::Response& res);
 void UpdateAnswerHandler(const httplib::Request& req, httplib::Response& res);
+void GetUserAttemptForTestHandler(const httplib::Request& req, httplib::Response& res);
 
 // ============================================================================
 // ПРОСТЫЕ ОБРАБОТЧИКИ

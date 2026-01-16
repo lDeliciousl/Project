@@ -947,6 +947,32 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
             return;
         }
 
+        // Проверяем, есть ли уже попытка у этого пользователя (завершённая или в процессе)
+        const char* checkParams[2];
+        checkParams[0] = test_id.c_str();
+        checkParams[1] = user_id.c_str();
+        PGresult* existingAttempt = PQexecParams(conn,
+            "SELECT id::text, status FROM test_attempts WHERE test_id = $1 AND user_id = $2 LIMIT 1",
+            2, nullptr, checkParams, nullptr, nullptr, 0);
+        
+        if (PQresultStatus(existingAttempt) == PGRES_TUPLES_OK && PQntuples(existingAttempt) > 0) {
+            std::string existingId = PQgetvalue(existingAttempt, 0, 0);
+            std::string existingStatus = PQgetvalue(existingAttempt, 0, 1);
+            PQclear(existingAttempt);
+            res.status = 409;
+            nlohmann::json err;
+            if (existingStatus == "completed") {
+                err["error"] = "Вы уже проходили этот тест";
+            } else {
+                err["error"] = "У вас уже есть незавершённая попытка";
+            }
+            err["existing_attempt_id"] = existingId;
+            err["existing_status"] = existingStatus;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        PQclear(existingAttempt);
+
         std::string attempt_id = db.create_test_attempt(test_id, user_id);
         
         if (attempt_id.empty()) {
@@ -1156,15 +1182,22 @@ void AddQuestionHandler(const httplib::Request& req, httplib::Response& res) {
             }
         }
 
-        const char* qParams[4];
+        // Получаем title из текста, если не передан отдельно
+        std::string title = text;
+        if (body.contains("title") && !body["title"].is_null()) {
+            title = body.at("title").get<std::string>();
+        }
+        
+        const char* qParams[5];
         std::string pointsStr = std::to_string(points);
-        qParams[0] = test_id.c_str();
+        qParams[0] = title.c_str();        // title
         qParams[1] = text.c_str();
         qParams[2] = type.c_str();
         qParams[3] = pointsStr.c_str();
+        qParams[4] = ctx_uuid.c_str();     // author_id
         PGresult* qResult = PQexecParams(conn,
-            "INSERT INTO questions (test_id, text, question_type, points) VALUES ($1, $2, $3, $4::int) RETURNING id::text",
-            4, nullptr, qParams, nullptr, nullptr, 0);
+            "INSERT INTO questions (title, text, question_type, points, author_id) VALUES ($1, $2, $3, $4::int, $5) RETURNING id::text",
+            5, nullptr, qParams, nullptr, nullptr, 0);
 
         if (PQresultStatus(qResult) != PGRES_TUPLES_OK || PQntuples(qResult) == 0) {
             res.status = 500;
@@ -1882,7 +1915,7 @@ void GetCourseTestsHandler(const httplib::Request& req, httplib::Response& res) 
     paramValues[0] = courseId.c_str();
     PGresult* result = PQexecParams(conn,
         "SELECT t.id::text, t.name, t.is_active, "
-        "(SELECT COUNT(*) FROM questions q WHERE q.test_id = t.id) as questions_count "
+        "(SELECT COUNT(*) FROM test_questions tq WHERE tq.test_id = t.id) as questions_count "
         "FROM tests t WHERE t.course_id = $1",
         1, nullptr, paramValues, nullptr, nullptr, 0);
 
@@ -3234,8 +3267,6 @@ void GetAttemptAnswersHandler(const httplib::Request& req, httplib::Response& re
     
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
-    
-    if (!CheckAccess(ctx, "answer:read", res)) return;
 
     Database& db = Database::get_instance();
     PGconn* conn = db.getConnection();
@@ -3243,6 +3274,42 @@ void GetAttemptAnswersHandler(const httplib::Request& req, httplib::Response& re
         res.status = 500;
         res.set_content("{\"error\": \"Database not connected\"}", "application/json");
         return;
+    }
+
+    // Resolve user UUID
+    std::string ctx_uuid = ctx.user_id;
+    if (!IsUuid(ctx_uuid)) {
+        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
+    }
+
+    // Проверяем, является ли пользователь владельцем попытки или преподавателем
+    const char* checkParams[1];
+    checkParams[0] = attemptId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT ta.user_id::text, c.teacher_id::text "
+        "FROM test_attempts ta "
+        "JOIN tests t ON ta.test_id = t.id "
+        "JOIN courses c ON t.course_id = c.id "
+        "WHERE ta.id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Attempt not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string attemptUserId = PQgetvalue(checkResult, 0, 0);
+    std::string teacherId = PQgetvalue(checkResult, 0, 1);
+    PQclear(checkResult);
+
+    // Разрешаем: владелец попытки, преподаватель курса, или пользователь с answer:read
+    bool isOwner = (ctx_uuid == attemptUserId);
+    bool isTeacher = (ctx_uuid == teacherId);
+    
+    if (!isOwner && !isTeacher) {
+        if (!CheckAccess(ctx, "answer:read", res)) return;
     }
 
     // Получаем ответы с детальной информацией о вопросах
@@ -3393,6 +3460,169 @@ void FinishAttemptHandler(const httplib::Request& req, httplib::Response& res) {
     resp["score"] = correct_count;
     resp["max_score"] = max_score;
     res.set_content(resp.dump(), "application/json");
+}
+
+void CreateAnswerHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string attemptId = matchToString(req.matches, 1);
+    std::cout << "[CreateAnswerHandler] Attempt ID: " << attemptId << std::endl;
+    
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    std::string questionId, optionId;
+    try {
+        auto body = nlohmann::json::parse(req.body);
+        questionId = body.at("question_id").get<std::string>();
+        optionId = body.at("option_id").get<std::string>();
+    } catch (...) {
+        res.status = 400;
+        res.set_content("{\"error\": \"Invalid request body\"}", "application/json");
+        return;
+    }
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    // Resolve user UUID
+    std::string ctx_uuid = ctx.user_id;
+    if (!IsUuid(ctx_uuid)) {
+        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
+    }
+
+    // Проверяем, что попытка принадлежит пользователю и не завершена
+    const char* checkParams[1];
+    checkParams[0] = attemptId.c_str();
+    PGresult* checkResult = PQexecParams(conn,
+        "SELECT user_id::text, status FROM test_attempts WHERE id = $1",
+        1, nullptr, checkParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(checkResult) != PGRES_TUPLES_OK || PQntuples(checkResult) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"Attempt not found\"}", "application/json");
+        PQclear(checkResult);
+        return;
+    }
+
+    std::string attemptUserId = PQgetvalue(checkResult, 0, 0);
+    std::string status = PQgetvalue(checkResult, 0, 1);
+    PQclear(checkResult);
+
+    if (ctx_uuid != attemptUserId) {
+        res.status = 403;
+        res.set_content("{\"error\": \"Forbidden\"}", "application/json");
+        return;
+    }
+
+    if (status == "completed") {
+        res.status = 400;
+        res.set_content("{\"error\": \"Attempt already completed\"}", "application/json");
+        return;
+    }
+
+    // Проверяем правильность ответа
+    const char* optionParams[1];
+    optionParams[0] = optionId.c_str();
+    PGresult* optionResult = PQexecParams(conn,
+        "SELECT is_correct FROM question_options WHERE id = $1",
+        1, nullptr, optionParams, nullptr, nullptr, 0);
+
+    bool isCorrect = false;
+    if (PQresultStatus(optionResult) == PGRES_TUPLES_OK && PQntuples(optionResult) > 0) {
+        std::string correctVal = PQgetvalue(optionResult, 0, 0);
+        isCorrect = (correctVal == "t" || correctVal == "true");
+    }
+    PQclear(optionResult);
+
+    // Вставляем или обновляем ответ
+    const char* upsertParams[4];
+    upsertParams[0] = attemptId.c_str();
+    upsertParams[1] = questionId.c_str();
+    upsertParams[2] = optionId.c_str();
+    std::string isCorrectStr = isCorrect ? "true" : "false";
+    upsertParams[3] = isCorrectStr.c_str();
+
+    PGresult* upsertResult = PQexecParams(conn,
+        "INSERT INTO attempt_answers (attempt_id, question_id, option_id, is_correct) "
+        "VALUES ($1, $2, $3, $4) "
+        "ON CONFLICT (attempt_id, question_id) DO UPDATE SET option_id = $3, is_correct = $4 "
+        "RETURNING id::text",
+        4, nullptr, upsertParams, nullptr, nullptr, 0);
+
+    if (PQresultStatus(upsertResult) != PGRES_TUPLES_OK) {
+        std::cerr << "[CreateAnswerHandler] DB error: " << PQerrorMessage(conn) << std::endl;
+        res.status = 500;
+        res.set_content("{\"error\": \"Failed to save answer\"}", "application/json");
+        PQclear(upsertResult);
+        return;
+    }
+
+    std::string answerId = PQgetvalue(upsertResult, 0, 0);
+    PQclear(upsertResult);
+
+    nlohmann::json resp;
+    resp["id"] = answerId;
+    resp["is_correct"] = isCorrect;
+    res.status = 201;
+    res.set_content(resp.dump(), "application/json");
+}
+
+void GetUserAttemptForTestHandler(const httplib::Request& req, httplib::Response& res) {
+    std::string testId = matchToString(req.matches, 1);
+    std::cout << "[GetUserAttemptForTestHandler] Test ID: " << testId << std::endl;
+    
+    auto ctx = CheckToken(req);
+    if (Unauthorized(res, ctx)) return;
+
+    Database& db = Database::get_instance();
+    PGconn* conn = db.getConnection();
+    if (!conn) {
+        res.status = 500;
+        res.set_content("{\"error\": \"Database not connected\"}", "application/json");
+        return;
+    }
+
+    // Resolve user UUID
+    std::string ctx_uuid = ctx.user_id;
+    if (!IsUuid(ctx_uuid)) {
+        ctx_uuid = ResolveOrCreateUserUUID(conn, ctx.user_id, ctx.email);
+    }
+
+    // Ищем попытку пользователя для этого теста
+    const char* params[2];
+    params[0] = testId.c_str();
+    params[1] = ctx_uuid.c_str();
+    PGresult* result = PQexecParams(conn,
+        "SELECT id::text, status, score, max_score, started_at, finished_at "
+        "FROM test_attempts WHERE test_id = $1 AND user_id = $2 "
+        "ORDER BY started_at DESC LIMIT 1",
+        2, nullptr, params, nullptr, nullptr, 0);
+
+    if (PQresultStatus(result) != PGRES_TUPLES_OK || PQntuples(result) == 0) {
+        res.status = 404;
+        res.set_content("{\"error\": \"No attempt found\"}", "application/json");
+        PQclear(result);
+        return;
+    }
+
+    nlohmann::json json_response;
+    json_response["id"] = PQgetvalue(result, 0, 0);
+    json_response["status"] = PQgetvalue(result, 0, 1);
+    
+    char* scoreVal = PQgetvalue(result, 0, 2);
+    char* maxScoreVal = PQgetvalue(result, 0, 3);
+    json_response["score"] = (scoreVal && strlen(scoreVal) > 0) ? std::stoi(scoreVal) : 0;
+    json_response["max_score"] = (maxScoreVal && strlen(maxScoreVal) > 0) ? std::stoi(maxScoreVal) : 0;
+    
+    json_response["started_at"] = PQgetvalue(result, 0, 4) ? PQgetvalue(result, 0, 4) : "";
+    json_response["finished_at"] = PQgetvalue(result, 0, 5) ? PQgetvalue(result, 0, 5) : "";
+    
+    PQclear(result);
+    res.set_content(json_response.dump(), "application/json");
 }
 
 void UpdateAnswerHandler(const httplib::Request& req, httplib::Response& res) {
