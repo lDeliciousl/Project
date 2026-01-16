@@ -354,6 +354,15 @@ router.get('/questions/:id', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/questions/:id/versions', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.getQuestionVersions(req.params.id, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
 router.post('/questions', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.createQuestion(req.body, getAccessToken(req));
@@ -366,6 +375,15 @@ router.post('/questions', requireAuth, async (req, res) => {
 router.put('/questions/:id', requireAuth, async (req, res) => {
   try {
     const data = await mainApiClient.updateQuestion(req.params.id, req.body, getAccessToken(req));
+    res.json(data);
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
+router.delete('/questions/:id/version', requireAuth, async (req, res) => {
+  try {
+    const data = await mainApiClient.deleteQuestionVersion(req.params.id, getAccessToken(req));
     res.json(data);
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message, details: error.data });

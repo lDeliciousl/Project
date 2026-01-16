@@ -318,11 +318,14 @@ router.get('/question/:id', requireTeacher, async (req, res) => {
   const user = req.sessionData?.userData || {};
   const testId = req.query.test || '';
   
+  console.log('[Teacher] GET /question/:id - Requested ID:', questionId);
+  
   try {
     // Получаем информацию о вопросе
     let question = null;
     try {
       question = await apiRequest(req, `/api/questions/${questionId}`);
+      console.log('[Teacher] API returned question ID:', question?.id, 'version:', question?.version);
     } catch (err) {
       console.error('[Teacher] Не удалось загрузить вопрос:', err.message);
       return res.status(404).render('error', {

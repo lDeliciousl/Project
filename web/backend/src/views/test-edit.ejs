@@ -167,7 +167,7 @@
                                 <% availableQuestions.forEach(q => { %>
                                     <div class="available-question" data-title="<%= (q.title || q.text || '').toLowerCase() %>">
                                         <div class="aq-info">
-                                            <div class="aq-title"><%= q.title || q.text %></div>
+                                            <div class="aq-title"><%= q.title || q.text %> <span style="background:#667eea;color:white;padding:1px 6px;border-radius:8px;font-size:10px;">v<%= q.version || 1 %></span></div>
                                             <div class="aq-meta"><%= q.points || 1 %> балл • <%= q.options_count || (q.options ? q.options.length : 0) %> вариантов</div>
                                         </div>
                                         <button class="btn btn-success btn-sm" onclick="addQuestionToTest('<%= q.id %>')">+ Добавить</button>

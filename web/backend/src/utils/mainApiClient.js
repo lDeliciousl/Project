@@ -338,6 +338,13 @@ class MainApiClient {
   }
 
   /**
+   * Получить историю версий вопроса
+   */
+  async getQuestionVersions(questionId, accessToken) {
+    return this.request(`/api/questions/${questionId}/versions`, 'get', null, accessToken);
+  }
+
+  /**
    * Создать вопрос
    */
   async createQuestion(questionData, accessToken) {
@@ -352,10 +359,17 @@ class MainApiClient {
   }
 
   /**
-   * Удалить вопрос
+   * Удалить вопрос (все версии)
    */
   async deleteQuestion(questionId, accessToken) {
     return this.request(`/api/questions/${questionId}`, 'delete', null, accessToken);
+  }
+
+  /**
+   * Удалить только одну версию вопроса
+   */
+  async deleteQuestionVersion(questionId, accessToken) {
+    return this.request(`/api/questions/${questionId}/version`, 'delete', null, accessToken);
   }
 
   // ========== Методы для работы с курсами (Courses) ==========

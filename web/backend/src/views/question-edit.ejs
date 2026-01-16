@@ -12,8 +12,26 @@
         .nav-links { display: flex; gap: 10px; }
         .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
         .nav-btn:hover { background: #cbd5e0; }
-        .container { max-width: 800px; margin: 30px auto; padding: 0 20px; }
+        .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
         .page-title { font-size: 24px; margin-bottom: 20px; }
+        
+        .main-layout { display: flex; gap: 20px; align-items: flex-start; }
+        .version-panel { width: 200px; flex-shrink: 0; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: none; }
+        .version-panel.visible { display: block; }
+        .version-header { padding: 15px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #4a5568; font-size: 14px; }
+        .version-list { max-height: 500px; overflow-y: auto; }
+        .version-item { padding: 12px 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.2s; }
+        .version-item:hover { background: #f7fafc; }
+        .version-item.active { background: #ebf4ff; border-left: 3px solid #667eea; }
+        .version-item.deleted { opacity: 0.5; background: #fff5f5; }
+        .version-number { font-weight: 600; color: #667eea; font-size: 14px; }
+        .version-date { font-size: 11px; color: #a0aec0; margin-top: 4px; }
+        .version-tests { font-size: 11px; color: #718096; margin-top: 2px; }
+        .version-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; margin-left: 5px; }
+        .version-badge.current { background: #c6f6d5; color: #22543d; }
+        .version-badge.deleted { background: #fed7d7; color: #742a2a; }
+        
+        .editor-panel { flex: 1; min-width: 0; }
         .card { background: white; border-radius: 10px; padding: 25px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .form-group { margin-bottom: 20px; }
         .form-label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #4a5568; }
@@ -36,13 +54,21 @@
         .btn-outline { background: transparent; border: 2px solid #667eea; color: #667eea; }
         .btn-outline:hover { background: #667eea; color: white; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .actions { display: flex; gap: 10px; margin-top: 20px; }
+        .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
         .hint { font-size: 12px; color: #718096; margin-top: 5px; }
         .alert { padding: 12px; border-radius: 8px; margin-bottom: 20px; }
         .alert-error { background: #fed7d7; color: #742a2a; }
         .alert-success { background: #c6f6d5; color: #22543d; }
         .test-link { background: #e2e8f0; padding: 8px 12px; border-radius: 6px; margin-bottom: 15px; font-size: 14px; }
         .test-link a { color: #667eea; text-decoration: none; }
+        .version-info { background: #ebf4ff; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; color: #4a5568; }
+        .version-info strong { color: #667eea; }
+        
+        @media (max-width: 768px) {
+            .main-layout { flex-direction: column; }
+            .version-panel { width: 100%; order: 2; }
+            .version-list { max-height: 200px; }
+        }
     </style>
 </head>
 <body>
@@ -68,8 +94,21 @@
             <div class="test-link">📝 Вопрос будет добавлен в тест</div>
         <% } %>
 
-        <div class="card">
-            <form id="questionForm">
+        <div class="main-layout">
+            <div class="version-panel" id="versionPanel">
+                <div class="version-header">📋 История версий</div>
+                <div class="version-list" id="versionList">
+                    <div style="padding: 15px; color: #a0aec0; font-size: 13px;">Загрузка...</div>
+                </div>
+            </div>
+            
+            <div class="editor-panel">
+                <div class="card" id="editorCard">
+                    <div class="version-info" id="versionInfo" style="display: none;">
+                        Версия: <strong id="currentVersionNum">1</strong>
+                        <span id="versionStatus"></span>
+                    </div>
+                    <form id="questionForm">
                 <div class="form-group">
                     <label class="form-label">Название вопроса *</label>
                     <input type="text" class="form-input" name="title" id="titleInput" value="<%= question.title || '' %>" required placeholder="Краткое название для идентификации">
@@ -98,18 +137,108 @@
                 </div>
 
                 <div class="actions">
-                    <button type="submit" class="btn btn-success"><%= question.id ? '💾 Сохранить' : '✓ Создать' %></button>
+                    <button type="submit" class="btn btn-success"><%= question.id ? '💾 Сохранить (создаст v' + ((question.version || 1) + 1) + ')' : '✓ Создать' %></button>
                     <% if (question.id) { %>
-                        <button type="button" class="btn btn-danger" onclick="deleteQuestion()">Удалить</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteCurrentVersion()" title="Удалить только эту версию">🗑️ Удалить v<%= question.version || 1 %></button>
+                        <button type="button" class="btn" style="background:#742a2a;color:white;" onclick="deleteAllVersions()" title="Удалить все версии вопроса">⚠️ Удалить ВСЕ версии</button>
                     <% } %>
                 </div>
             </form>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const questionId = '<%= question.id || "" %>';
         const testId = '<%= typeof testId !== "undefined" ? testId : "" %>';
+        const currentVersion = <%= question.version || 1 %>;
+        const accessToken = '<%= sessionData?.accessToken || "" %>';
+        let versionsData = [];
+        
+        // Загрузка истории версий
+        async function loadVersions() {
+            if (!questionId) return;
+            console.log('[LoadVersions] Loading for questionId:', questionId, 'currentVersion:', currentVersion);
+            
+            try {
+                const res = await fetch('/api/questions/' + questionId + '/versions', {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log('[LoadVersions] API response:', data);
+                    console.log('[LoadVersions] Versions array:', JSON.stringify(data.versions, null, 2));
+                    versionsData = data.versions || [];
+                    renderVersions();
+                    
+                    // Показываем панель версий если есть больше 1 версии
+                    if (versionsData.length > 0) {
+                        document.getElementById('versionPanel').classList.add('visible');
+                        document.getElementById('versionInfo').style.display = 'block';
+                        document.getElementById('currentVersionNum').textContent = currentVersion;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load versions:', err);
+            }
+        }
+        
+        function renderVersions() {
+            const list = document.getElementById('versionList');
+            if (versionsData.length === 0) {
+                list.innerHTML = '<div style="padding: 15px; color: #a0aec0; font-size: 13px;">Нет версий</div>';
+                return;
+            }
+            
+            const maxVersion = Math.max(...versionsData.map(v => v.version));
+            
+            list.innerHTML = versionsData.map(v => {
+                const isActive = v.version === currentVersion;
+                const isCurrent = v.version === maxVersion && !v.is_deleted;
+                const badges = [];
+                if (isCurrent) badges.push('<span class="version-badge current">актуальная</span>');
+                if (v.is_deleted) badges.push('<span class="version-badge deleted">удалена</span>');
+                
+                const date = v.created_at ? new Date(v.created_at).toLocaleDateString('ru-RU', {
+                    day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+                }) : '';
+                
+                return `
+                    <div class="version-item ${isActive ? 'active' : ''} ${v.is_deleted ? 'deleted' : ''}" 
+                         style="cursor: pointer;" data-version-id="${v.id}" data-version-num="${v.version}">
+                        <div class="version-number">v${v.version} ${badges.join('')}</div>
+                        <div class="version-date">${date}</div>
+                        ${v.tests_count > 0 ? `<div class="version-tests">В ${v.tests_count} тестах</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+            
+            // Добавляем обработчики кликов после рендеринга
+            document.querySelectorAll('.version-item').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const versionId = this.getAttribute('data-version-id');
+                    const versionNum = parseInt(this.getAttribute('data-version-num'));
+                    selectVersion(versionId, versionNum);
+                });
+            });
+        }
+        
+        function selectVersion(versionId, versionNum) {
+            console.log('[SelectVersion] Clicked:', { versionId, versionNum, currentVersion });
+            if (versionNum === currentVersion) {
+                console.log('[SelectVersion] Same version, ignoring');
+                return;
+            }
+            console.log('[SelectVersion] Navigating to:', '/teacher/question/' + versionId);
+            window.location.href = '/teacher/question/' + versionId;
+        }
+        
+        // Загружаем версии при загрузке страницы
+        if (questionId) {
+            loadVersions();
+        }
         
         function addOption() {
             const list = document.getElementById('optionsList');
@@ -191,7 +320,6 @@
                     method = 'POST';
                 }
                 
-                const accessToken = '<%= sessionData?.accessToken || "" %>';
                 const res = await fetch(url, {
                     method,
                     headers: { 
@@ -220,10 +348,10 @@
             }
         };
         
-        async function deleteQuestion() {
-            if (!confirm('Удалить вопрос?')) return;
+        // Удалить ВСЕ версии вопроса
+        async function deleteAllVersions() {
+            if (!confirm('⚠️ ВНИМАНИЕ! Будут удалены ВСЕ версии этого вопроса. Продолжить?')) return;
             try {
-                const accessToken = '<%= sessionData?.accessToken || "" %>';
                 const res = await fetch('/api/questions/' + questionId, { 
                     method: 'DELETE',
                     headers: {
@@ -234,7 +362,41 @@
                     window.location.href = '/teacher/questions';
                 } else {
                     const err = await res.json();
-                    alert('Ошибка: ' + (err.error || 'Не удалось удалить'));
+                    alert('Ошибка: ' + (err.error || err.details || 'Не удалось удалить'));
+                }
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+            }
+        }
+        
+        // Удалить только ТЕКУЩУЮ версию
+        async function deleteCurrentVersion() {
+            const totalVersions = versionsData.length;
+            if (totalVersions <= 1) {
+                // Если только одна версия - удаляем все
+                if (!confirm('Это единственная версия вопроса. Удалить её?')) return;
+                return deleteAllVersions();
+            }
+            
+            if (!confirm(`Удалить только версию v${currentVersion}? Другие версии останутся.`)) return;
+            try {
+                const res = await fetch('/api/questions/' + questionId + '/version', { 
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Переходим к другой версии если есть
+                    if (data.redirect_to) {
+                        window.location.href = '/teacher/question/' + data.redirect_to;
+                    } else {
+                        window.location.href = '/teacher/questions';
+                    }
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || err.details || 'Не удалось удалить'));
                 }
             } catch (err) {
                 alert('Ошибка сети: ' + err.message);
