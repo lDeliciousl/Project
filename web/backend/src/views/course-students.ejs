@@ -128,7 +128,7 @@
 
     <script>
         // Данные студентов переданные с сервера
-        const studentsData = <%- JSON.stringify(students || []) %>;
+        const studentsData = <%- JSON.stringify(students || []) %>; // Без ковычек, массив
         
         function filterStudents(query) {
             const q = query.toLowerCase();

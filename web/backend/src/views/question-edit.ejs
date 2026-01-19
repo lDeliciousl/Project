@@ -152,7 +152,7 @@
     <script>
         const questionId = '<%= question.id || "" %>';
         const testId = '<%= typeof testId !== "undefined" ? testId : "" %>';
-        const currentVersion = <%= question.version || 1 %>;
+        const currentVersion = <%= question.version || 1 %>; // Без кавычек, число
         const accessToken = '<%= sessionData?.accessToken || "" %>';
         let versionsData = [];
         

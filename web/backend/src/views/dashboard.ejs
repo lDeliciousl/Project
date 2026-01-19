@@ -360,7 +360,7 @@
                         
                         <% if (course.progress !== undefined) { %>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: <%= course.progress %>%;"></div>
+                                <div class="progress-fill" style="width: <%= course.progress %>%;"></div> <!-- Без ковычек, число -->
                             </div>
                             <div class="progress-text">
                                 Прогресс: <%= course.progress %>%

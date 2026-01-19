@@ -575,38 +575,4 @@ router.post('/confirm/verify', async (req, res) => {
     });
   }
 });
-
-// Быстрый вход для тестирования
-router.get('/test-login', async (req, res) => {
-  const loginToken = generateLoginToken();
-  const sessionToken = await sessionManager.createAnonymousSession(loginToken);
-  
-  if (!sessionToken) {
-    return res.status(500).send('Ошибка создания сессии');
-  }
-  
-  const mockUserData = {
-    id: `test_user_${Date.now()}`,
-    email: 'test@example.com',
-    name: 'Тестовый Аккаунт',
-    roles: ['student', 'teacher'],
-    permissions: ['course:read', 'course:write', 'test:take', 'test:create']
-  };
-  
-  await sessionManager.updateToAuthenticated(
-    sessionToken,
-    `test_access_${Date.now()}`,
-    `test_refresh_${Date.now()}`,
-    mockUserData
-  );
-  
-  res.cookie('session_token', sessionToken, {
-    httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: 'lax'
-  });
-  
-  res.redirect('/');
-});
-
 module.exports = router;

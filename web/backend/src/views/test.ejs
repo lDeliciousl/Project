@@ -380,7 +380,7 @@
     <script>
         const testId = '<%= test.id %>';
         const userId = '<%= user.id || "" %>';
-        const totalQuestions = <%= test.questions ? test.questions.length : 0 %>;
+        const totalQuestions = <%= test.questions ? test.questions.length : 0 %>; // Без ковычек, число
         const existingAttemptId = '<%= existingAttempt ? existingAttempt.id : "" %>';
         const existingAttemptStatus = '<%= existingAttempt ? existingAttempt.status : "" %>';
         let currentQuestion = 0;

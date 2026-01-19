@@ -135,7 +135,7 @@
 
     <script>
         (function() {
-            var countdown = <%= expiresIn %>;
+            var countdown = <%= expiresIn %>; // Без ковычек, число
             var countdownEl = document.getElementById('countdown');
             var codeDisplay = document.getElementById('codeDisplay');
             var loginToken = '<%= loginToken %>';

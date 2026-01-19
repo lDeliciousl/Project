@@ -151,7 +151,7 @@
                                 <div class="score-bar">
                                     <% const score = test.completed ? Math.round((test.score / test.max_score) * 100) : 0; %>
                                     <% const scoreClass = score >= 80 ? 'high' : score >= 60 ? 'medium' : 'low'; %>
-                                    <div class="score-fill <%= scoreClass %>" style="width: <%= score %>%"></div>
+                                    <div class="score-fill <%= scoreClass %>" style="width: <%= score %>%"></div> <!-- Без ковычек, число -->
                                 </div>
                                 <div class="score-text">
                                     <% if (test.completed) { %>
@@ -200,7 +200,7 @@
 
         // Обновляем статистику при загрузке страницы
         document.addEventListener('DOMContentLoaded', () => {
-            const tests = <%- JSON.stringify(testResults || []) %>;
+            const tests = <%- JSON.stringify(testResults || []) %>; // Без ковычек, массив
             
             const totalTests = tests.length;
             const completedTests = tests.filter(t => t.completed).length;
