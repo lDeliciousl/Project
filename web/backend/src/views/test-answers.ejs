@@ -10,8 +10,12 @@
         .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
         .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
         .nav-links { display: flex; gap: 10px; }
-        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; transition: background 0.3s; white-space: nowrap; }
         .nav-btn:hover { background: #cbd5e0; }
+        .confirm-btn { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .confirm-btn:hover { background: #5a6fe0; }
+        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .logout-btn:hover { background: #ff3742; }
         .container { max-width: 1000px; margin: 30px auto; padding: 0 20px; }
         .page-title { font-size: 24px; margin-bottom: 20px; }
         .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
@@ -55,13 +59,15 @@
     <div class="header">
         <a href="/" class="logo">📚 Система тестирования</a>
         <div class="nav-links">
-            <a href="/teacher" class="nav-btn">← Панель преподавателя</a>
+            <a href="/" class="confirm-btn" style="background: #4a5568;">Главная</a>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">Панель преподавателя</a>
             <% if (course && course.id) { %>
-                <a href="/teacher/course/<%= course.id %>" class="nav-btn">← К курсу</a>
-                <a href="/teacher/course/<%= course.id %>/students" class="nav-btn">← Студенты</a>
+                <a href="/teacher/course/<%= course.id %>" class="confirm-btn" style="background: #4a5568;">К курсу</a>
+                <a href="/teacher/course/<%= course.id %>/students" class="confirm-btn" style="background: #4a5568;">Студенты</a>
             <% } else { %>
-                <a href="/teacher/students" class="nav-btn">← Студенты</a>
+                <a href="/teacher/students" class="confirm-btn" style="background: #4a5568;">Студенты</a>
             <% } %>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">Профиль</a>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>
     </div>
@@ -94,8 +100,8 @@
                 <div class="student-info">
                     <h2><%= student.name || student.email %></h2>
                     <p>Тест: <%= test.name %></p>
-                    <% if (attempt.finished_at) { %>
-                        <p>Завершен: <%= new Date(attempt.finished_at).toLocaleString('ru-RU') %></p>
+                    <% if (attempt && attempt.completed) { %>
+                        <p>Завершен: <%= new Date(attempt.date).toLocaleString('ru-RU') %></p>
                     <% } else { %>
                         <p style="color: #ed8936;">Тест не завершен</p>
                     <% } %>
@@ -146,17 +152,18 @@
                                 <% if (answer.options && answer.options.length > 0) { %>
                                     <% answer.options.forEach((option, optIndex) => { %>
                                         <% 
-                                            const isSelected = answer.selected_option === optIndex;
+                                            const isSelected = answer.option_id === option.id;
                                             const isCorrect = option.is_correct;
+                                            const isStudentCorrect = answer.is_correct; // Правильность ответа студента
                                             let optionClass = '';
                                             let radioClass = 'option-radio';
                                             let radioText = '';
                                             
-                                            if (isSelected && isCorrect) {
+                                            if (isSelected && isStudentCorrect) {
                                                 optionClass = 'correct';
                                                 radioClass = 'option-radio correct';
                                                 radioText = '✓';
-                                            } else if (isSelected && !isCorrect) {
+                                            } else if (isSelected && !isStudentCorrect) {
                                                 optionClass = 'incorrect';
                                                 radioClass = 'option-radio incorrect';
                                                 radioText = '✗';
@@ -165,6 +172,8 @@
                                                 radioClass = 'option-radio correct';
                                                 radioText = '✓';
                                             } else {
+                                                optionClass = '';
+                                                radioClass = 'option-radio';
                                                 radioText = '';
                                             }
                                         %>

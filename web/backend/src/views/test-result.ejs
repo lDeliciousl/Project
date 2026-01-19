@@ -10,8 +10,12 @@
         .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
         .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
         .nav-links { display: flex; gap: 10px; }
-        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; transition: background 0.3s; white-space: nowrap; }
         .nav-btn:hover { background: #cbd5e0; }
+        .confirm-btn { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .confirm-btn:hover { background: #5a6fe0; }
+        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .logout-btn:hover { background: #ff3742; }
         .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
         .page-title { font-size: 24px; margin-bottom: 20px; }
         .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
@@ -53,8 +57,13 @@
     <div class="header">
         <a href="/" class="logo">📚 Система тестирования</a>
         <div class="nav-links">
-            <a href="/profile" class="nav-btn">← Мой профиль</a>
-            <a href="/" class="nav-btn">На главную</a>
+            <a href="/" class="confirm-btn" style="background: #4a5568;">Главная</a>
+            <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">Панель преподавателя</a>
+            <% } %>
+            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">Дисциплины</a>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">Профиль</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
         </div>
     </div>
 
@@ -106,9 +115,9 @@
                             <% if (answer.options && answer.options.length > 0) { %>
                                 <div class="options-list">
                                     <% answer.options.forEach(option => { %>
-                                        <div class="option-item <%= option.is_correct ? 'correct' : '' %> <%= option.id === answer.selected_option_id && !option.is_correct ? 'incorrect' : '' %> <%= option.id === answer.selected_option_id ? 'selected' : '' %>">
+                                        <div class="option-item <%= option.is_correct ? 'correct' : '' %> <%= option.id === answer.option_id && !answer.is_correct ? 'incorrect' : '' %> <%= option.id === answer.option_id ? 'selected' : '' %>">
                                             <div class="option-radio">
-                                                <% if (option.is_correct) { %>✓<% } else if (option.id === answer.selected_option_id) { %>✗<% } %>
+                                                <% if (option.is_correct) { %>✓<% } else if (option.id === answer.option_id && !answer.is_correct) { %>✗<% } %>
                                             </div>
                                             <span class="option-text"><%= option.text %></span>
                                         </div>
