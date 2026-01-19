@@ -645,7 +645,7 @@ router.get('/profile', async (req, res) => {
 
   const sessionUser = req.sessionData?.userData || {};
   const roles = sessionUser.roles || [];
-  const isAdmin = roles.includes('admin') || roles.includes('Админ');
+  const isAdmin = roles.includes('admin');
 
   // Получаем актуальное имя из API
   let userName = sessionUser.name;

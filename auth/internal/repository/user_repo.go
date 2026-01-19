@@ -122,7 +122,7 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) error {
 
 	// Устанавливаем значения по умолчанию
 	if user.Roles == nil {
-		user.Roles = []string{"Студент"}
+		user.Roles = []string{"student"}
 	}
 	if !user.IsActive {
 		user.IsActive = true
@@ -513,7 +513,7 @@ func (r *userRepository) UpsertByProvider(ctx context.Context, provider, provide
 	newUser := &models.User{
 		Email:      user.Email,
 		Name:       resolvedName,
-		Roles:      []string{"Студент"},
+		Roles:      []string{"student"},
 		AvatarURL:  user.AvatarURL,
 		Provider:   provider,
 		ProviderID: providerID,

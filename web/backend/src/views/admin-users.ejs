@@ -145,12 +145,21 @@
                                         <span class="detail-label">Роли:</span>
                                         <span class="detail-value">
                                             <% user.roles.forEach(role => { %>
-                                                <% if (role === 'Администратор' || role === 'admin') { %>
-                                                    <span class="status-badge admin"><%= role %></span>
-                                                <% } else if (role === 'Преподаватель' || role === 'teacher') { %>
-                                                    <span class="status-badge teacher"><%= role %></span>
+                                                <% if (role === 'admin') { %>
+                                                    <span class="status-badge admin">Администратор</span>
+                                                <% } else if (role === 'teacher') { %>
+                                                    <span class="status-badge teacher">Преподаватель</span>
+                                                <% } else if (role === 'student') { %>
+                                                    <span class="status-badge student">Студент</span>
                                                 <% } else { %>
-                                                    <span class="status-badge student"><%= role %></span>
+                                                    <!-- Fallback для кириллических ролей (обратная совместимость) -->
+                                                    <% if (role === 'Администратор') { %>
+                                                        <span class="status-badge admin"><%= role %></span>
+                                                    <% } else if (role === 'Преподаватель') { %>
+                                                        <span class="status-badge teacher"><%= role %></span>
+                                                    <% } else { %>
+                                                        <span class="status-badge student"><%= role %></span>
+                                                    <% } %>
                                                 <% } %>
                                             <% }); %>
                                         </span>
@@ -159,20 +168,20 @@
 
                                 <div class="roles-editor">
                                     <div class="role-checkbox">
-                                        <input type="checkbox" id="student-<%= user.id %>" value="Студент" 
-                                            <%= user.roles.includes('Студент') ? 'checked' : '' %>
+                                        <input type="checkbox" id="student-<%= user.id %>" value="student" 
+                                            <%= user.roles.includes('student') || user.roles.includes('Студент') ? 'checked' : '' %>
                                             onchange="updateRoles('<%= user.id %>')">
                                         <label for="student-<%= user.id %>">Студент</label>
                                     </div>
                                     <div class="role-checkbox">
-                                        <input type="checkbox" id="teacher-<%= user.id %>" value="Преподаватель" 
-                                            <%= user.roles.includes('Преподаватель') || user.roles.includes('teacher') ? 'checked' : '' %>
+                                        <input type="checkbox" id="teacher-<%= user.id %>" value="teacher" 
+                                            <%= user.roles.includes('teacher') || user.roles.includes('Преподаватель') ? 'checked' : '' %>
                                             onchange="updateRoles('<%= user.id %>')">
                                         <label for="teacher-<%= user.id %>">Преподаватель</label>
                                     </div>
                                     <div class="role-checkbox">
-                                        <input type="checkbox" id="admin-<%= user.id %>" value="Администратор" 
-                                            <%= user.roles.includes('Администратор') || user.roles.includes('admin') ? 'checked' : '' %>
+                                        <input type="checkbox" id="admin-<%= user.id %>" value="admin" 
+                                            <%= user.roles.includes('admin') || user.roles.includes('Администратор') ? 'checked' : '' %>
                                             onchange="updateRoles('<%= user.id %>')">
                                         <label for="admin-<%= user.id %>">Администратор</label>
                                     </div>

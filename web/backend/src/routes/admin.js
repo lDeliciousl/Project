@@ -9,8 +9,8 @@ function requireAdmin(req, res, next) {
   console.log('[ADMIN DEBUG] User object:', JSON.stringify(user, null, 2));
   console.log('[ADMIN DEBUG] User roles:', user?.roles);
   
-  if (!user || !user.roles || (!user.roles.includes('admin') && !user.roles.includes('Администратор'))) {
-    console.log('[ADMIN DEBUG] Access denied - user roles do not include admin or Администратор');
+  if (!user || !user.roles || (!user.roles.includes('admin'))) {
+    console.log('[ADMIN DEBUG] Access denied - user roles do not include admin');
     return res.status(403).render('error', {
       title: 'Доступ запрещен',
       message: 'Только администраторы могут управлять пользователями.'
@@ -79,7 +79,7 @@ router.put('/users/:userId/roles', requireAdmin, async (req, res) => {
     }
 
     // Проверяем, что роли валидны
-    const validRoles = ['Студент', 'Преподаватель', 'Администратор', 'teacher', 'admin'];
+    const validRoles = ['student', 'teacher', 'admin'];
     const invalidRoles = roles.filter(role => !validRoles.includes(role));
     if (invalidRoles.length > 0) {
       return res.status(400).json({ error: `Invalid roles: ${invalidRoles.join(', ')}` });

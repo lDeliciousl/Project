@@ -172,8 +172,8 @@ func setupRoutes(router *gin.Engine, handler *handlers.AuthHandler, tokenService
 
 			// Управление пользователями
 			auth.GET("/users/:user_id", handler.GetUserInfo)
-			auth.PUT("/users/:user_id/roles", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin", "Администратор"), handler.UpdateUserRoles)
-			auth.GET("/users", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin", "Администратор"), handler.GetAllUsers)
+			auth.PUT("/users/:user_id/roles", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin"), handler.UpdateUserRoles)
+			auth.GET("/users", middleware.AuthMiddleware(tokenService), middleware.RoleMiddleware("admin"), handler.GetAllUsers)
 
 			// HTML страницы
 			//auth.GET("/success", func(c *gin.Context) {
