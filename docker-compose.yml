@@ -160,6 +160,71 @@ services:
     networks:
       - testing-network
 
+  telegram-redis:
+    image: redis:7-alpine
+    container_name: telegram-redis
+    restart: unless-stopped
+    networks:
+      - testing-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  telegram-bot-logic:
+    build:
+      context: ./telegram/bot-logic
+    container_name: telegram-bot-logic
+    restart: unless-stopped
+    environment:
+      BOT_LOGIC_PORT: 3005
+      AUTH_MODULE_URL: http://auth-module:8001
+      MAIN_MODULE_URL: http://main-module:3002
+      USE_REDIS: "true"
+      REDIS_URL: redis://telegram-redis:6379
+      REDIS_KEY_PREFIX: "telegram:"
+      USE_MOCKS: "false"
+      MOCK_AUTH_AUTO_APPROVE: "false"
+    depends_on:
+      telegram-redis:
+        condition: service_healthy
+      auth-module:
+        condition: service_started
+      main-module:
+        condition: service_started
+    networks:
+      - testing-network
+
+  telegram-nginx:
+    build:
+      context: ./telegram/nginx
+    container_name: telegram-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - telegram-bot-logic
+    networks:
+      - testing-network
+
+  telegram-client:
+    build:
+      context: ./telegram/telegram-client
+    container_name: telegram-client
+    restart: unless-stopped
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      BOT_LOGIC_URL: http://telegram-nginx:8080
+      RUN_TELEGRAM_CLIENT: "true"
+      POLL_INTERVAL_MS: 1000
+      CRON_AUTH_CHECK_MS: 15000
+      CRON_NOTIFICATIONS_MS: 20000
+    depends_on:
+      - telegram-nginx
+    networks:
+      - testing-network
+
 networks:
   testing-network:
     driver: bridge
