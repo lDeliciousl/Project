@@ -73,9 +73,27 @@
             padding: 8px 16px;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 14px;
             text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
         }
         .logout-btn:hover { background: #ff3742; }
+        .confirm-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        .confirm-btn:hover {
+            background: #5a6fe0;
+        }
         .container {
             max-width: 1000px;
             margin: 40px auto;
@@ -191,13 +209,12 @@
             <span>Система тестирования</span>
         </a>
         <div class="user-info">
-            <div class="avatar">
-                <%= user.avatarLetter || (user.name ? user.name.charAt(0).toUpperCase() : 'U') %>
-            </div>
-            <div class="user-details">
-                <div class="user-name"><strong><%= user.name || 'Пользователь' %></strong></div>
-                <div class="user-email"><%= user.email || '' %></div>
-            </div>
+            <a href="/" class="confirm-btn" style="background: #4a5568;">Главная</a>
+            <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">Панель преподавателя</a>
+            <% } %>
+            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">Дисциплины</a>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">Профиль</a>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>
     </div>

@@ -10,8 +10,12 @@
         .header { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
         .logo { font-size: 20px; font-weight: bold; color: #667eea; text-decoration: none; }
         .nav-links { display: flex; gap: 10px; }
-        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; }
+        .nav-btn { padding: 8px 16px; border-radius: 5px; text-decoration: none; font-size: 14px; background: #e2e8f0; color: #4a5568; transition: background 0.3s; white-space: nowrap; }
         .nav-btn:hover { background: #cbd5e0; }
+        .confirm-btn { background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .confirm-btn:hover { background: #5a6fe0; }
+        .logout-btn { background: #ff4757; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; transition: background 0.3s; white-space: nowrap; }
+        .logout-btn:hover { background: #ff3742; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .page-title { font-size: 24px; margin-bottom: 20px; color: #2d3748; }
         .breadcrumb { font-size: 14px; color: #718096; margin-bottom: 20px; }
@@ -64,11 +68,13 @@
             <span>Система тестирования</span>
         </div>
         <div class="nav-links">
-            <a href="/" class="nav-btn">🏠 Главная</a>
-            <a href="/teacher" class="nav-btn">📝 Панель преподавателя</a>
-            <a href="/admin/users" class="nav-btn">👥 Пользователи</a>
-            <a href="/profile" class="nav-btn">👤 Профиль</a>
-            <a href="/logout" class="nav-btn">🚪 Выйти</a>
+            <a href="/" class="confirm-btn" style="background: #4a5568;">Главная</a>
+            <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">Панель преподавателя</a>
+            <% } %>
+            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">Дисциплины</a>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">Профиль</a>
+            <a href="/logout" class="logout-btn">Выйти</a>
         </div>
     </div>
 
@@ -77,7 +83,7 @@
             <a href="/">Главная</a> / <a href="/admin/users">Администрирование</a> / Управление пользователями
         </div>
 
-        <h1 class="page-title">👥 Управление пользователями</h1>
+        <h1 class="page-title">Управление пользователями</h1>
 
         <% if (error) { %>
             <div class="error">
@@ -97,7 +103,7 @@
             </div>
 
             <div class="search-box">
-                <input type="text" class="search-input" placeholder="🔍 Поиск по имени или email..." id="searchInput">
+                <input type="text" class="search-input" placeholder="Поиск по имени или email..." id="searchInput">
             </div>
 
             <div id="usersContainer">
@@ -124,22 +130,6 @@
                                     <div class="detail-row">
                                         <span class="detail-label">ID:</span>
                                         <span class="detail-value"><%= user.id %></span>
-                                    </div>
-                                    <div class="detail-row">
-                                        <span class="detail-label">Провайдер:</span>
-                                        <span class="detail-value"><%= user.provider || 'code' %></span>
-                                    </div>
-                                    <div class="detail-row">
-                                        <span class="detail-label">Статус:</span>
-                                        <span class="detail-value">
-                                            <% if (user.blocked) { %>
-                                                <span class="status-badge admin">Заблокирован</span>
-                                            <% } else if (!user.is_active) { %>
-                                                <span class="status-badge">Неактивен</span>
-                                            <% } else { %>
-                                                <span class="status-badge student">Активен</span>
-                                            <% } %>
-                                        </span>
                                     </div>
                                     <div class="detail-row">
                                         <span class="detail-label">Роли:</span>
@@ -189,7 +179,7 @@
 
                                 <div class="user-actions">
                                     <button class="btn btn-primary" onclick="saveRoles('<%= user.id %>')">
-                                        💾 Сохранить роли
+                                        Сохранить роли
                                     </button>
                                 </div>
                             </div>

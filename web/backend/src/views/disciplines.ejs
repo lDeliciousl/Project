@@ -317,10 +317,10 @@
                 <div class="user-email"><%= user.email %></div>
             </div>
             <% if (user.roles && (user.roles.includes('teacher') || user.roles.includes('Преподаватель') || user.roles.includes('admin') || user.roles.includes('Админ'))) { %>
-            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">📝 Панель преподавателя</a>
+            <a href="/teacher" class="confirm-btn" style="background: #48bb78;">Панель преподавателя</a>
             <% } %>
-            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">📖 Дисциплины</a>
-            <a href="/profile" class="confirm-btn" style="background: #4a5568;">👤 Профиль</a>
+            <a href="/disciplines" class="confirm-btn" style="background: #4a5568;">Дисциплины</a>
+            <a href="/profile" class="confirm-btn" style="background: #4a5568;">Профиль</a>
             <a href="/auth/confirm" class="confirm-btn">Подтвердить вход</a>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>
@@ -328,7 +328,7 @@
     
     <div class="container">
         <div class="page-header">
-            <h1 class="page-title">📖 Дисциплины</h1>
+            <h1 class="page-title">Дисциплины</h1>
             <p class="page-subtitle">Изучайте доступные курсы и записывайтесь на интересные вам дисциплины</p>
         </div>
         
@@ -347,7 +347,6 @@
         <!-- Доступные для записи курсы -->
         <div class="section">
             <h2 class="section-title">
-                <span class="section-icon">🎯</span>
                 Доступные для записи
             </h2>
             
@@ -370,12 +369,10 @@
                             
                             <div class="course-meta">
                                 <div class="meta-item">
-                                    <span>📚</span>
                                     <span>Курс</span>
                                 </div>
                                 <% if (course.tests_count !== undefined) { %>
                                     <div class="meta-item">
-                                        <span>📝</span>
                                         <span><%= course.tests_count %> тестов</span>
                                     </div>
                                 <% } %>
@@ -385,7 +382,6 @@
                                 <form method="POST" action="/api/courses/<%= course.id %>/enroll" style="display: inline;">
                                     <input type="hidden" name="user_id" value="<%= user.id %>">
                                     <button type="submit" class="btn btn-primary">
-                                        <span>✓</span>
                                         Записаться
                                     </button>
                                 </form>
@@ -395,7 +391,7 @@
                 </div>
             <% } else { %>
                 <div class="empty-state">
-                    <div class="empty-icon">📭</div>
+                    <div class="empty-icon">📚</div>
                     <div class="empty-title">Нет доступных курсов</div>
                     <div class="empty-text">В настоящее время нет курсов, доступных для записи</div>
                 </div>
@@ -405,7 +401,6 @@
         <!-- Курсы, на которые записан пользователь -->
         <div class="section">
             <h2 class="section-title">
-                <span class="section-icon">✅</span>
                 Мои дисциплины
             </h2>
             
@@ -428,18 +423,15 @@
                             
                             <div class="course-meta">
                                 <div class="meta-item">
-                                    <span>📚</span>
                                     <span>Курс</span>
                                 </div>
                                 <% if (course.tests_count !== undefined) { %>
                                     <div class="meta-item">
-                                        <span>📝</span>
                                         <span><%= course.tests_count %> тестов</span>
                                     </div>
                                 <% } %>
                                 <% if (course.progress !== undefined) { %>
                                     <div class="meta-item">
-                                        <span>📊</span>
                                         <span>Прогресс: <%= course.progress %>%</span>
                                     </div>
                                 <% } %>
@@ -447,11 +439,9 @@
                             
                             <div class="course-actions">
                                 <a href="/course/<%= course.id %>" class="btn btn-secondary">
-                                    <span>📖</span>
                                     Перейти к курсу
                                 </a>
                                 <button class="btn btn-outline" style="border-color: #f56565; color: #f56565;" onclick="unenrollFromCourse('<%= course.id %>')">
-                                    <span>✕</span>
                                     Отписаться
                                 </button>
                             </div>
@@ -501,7 +491,7 @@
                 const originalText = submitBtn.innerHTML;
                 
                 // Показываем загрузку
-                submitBtn.innerHTML = '<span>⏳</span> Загрузка...';
+                submitBtn.innerHTML = 'Загрузка...';
                 submitBtn.disabled = true;
                 
                 try {
