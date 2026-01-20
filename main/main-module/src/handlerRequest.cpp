@@ -251,7 +251,7 @@ void AddUserHandler(const httplib::Request& req, httplib::Response& res) {
         
         bool userExists = (PQresultStatus(checkResult) == PGRES_TUPLES_OK && PQntuples(checkResult) > 0);
         PQclear(checkResult);
-        
+
         if (userExists) {
             // Пользователь уже существует, обновляем данные
             const char* updateParams[4];
@@ -263,7 +263,7 @@ void AddUserHandler(const httplib::Request& req, httplib::Response& res) {
             PGresult* updateResult = PQexecParams(conn,
                 "UPDATE users SET email = $1, full_name = $2, roles = $3 WHERE id::text = $4",
                 4, nullptr, updateParams, nullptr, nullptr, 0);
-            
+
             if (PQresultStatus(updateResult) != PGRES_COMMAND_OK) {
                 PQclear(updateResult);
                 res.status = 500;
