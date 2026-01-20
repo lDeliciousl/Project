@@ -199,9 +199,24 @@ router.get('/auth-health', async (req, res) => {
 
 router.get('/tests', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getTests(getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/tests',
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
@@ -211,69 +226,182 @@ router.get('/tests/:id', requireAuth, async (req, res) => {
     const data = await mainApiClient.getTestDetails(req.params.id, getAccessToken(req));
     res.json(data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.post('/tests', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.createTest(req.body, getAccessToken(req));
-    res.status(201).json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/tests',
+      method: 'post',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.status(201).json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.put('/tests/:id/activate', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.activateTest(req.params.id, req.body.is_active, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.id}/activate`,
+      method: 'put',
+      data: { is_active: req.body.is_active },
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.post('/tests/:id/questions', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.addQuestionToTest(req.params.id, req.body, getAccessToken(req));
-    res.status(201).json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.id}/questions`,
+      method: 'post',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.status(201).json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/tests/:testId/questions/:questionId', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.removeQuestionFromTest(req.params.testId, req.params.questionId, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.testId}/questions/${req.params.questionId}`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.put('/tests/:id/questions/order', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.updateQuestionsOrder(req.params.id, req.body.question_ids, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.id}/questions/order`,
+      method: 'put',
+      data: { question_ids: req.body.question_ids },
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.put('/tests/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.updateTest(req.params.id, req.body, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.id}`,
+      method: 'put',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/tests/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.deleteTest(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/tests/${req.params.id}`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
@@ -330,15 +458,33 @@ router.get('/attempts/:id/answers', requireAuth, async (req, res) => {
     const data = await mainApiClient.getAttemptAnswers(req.params.id, getAccessToken(req));
     res.json(data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/attempts/:attemptId/answers/:answerId', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.deleteAnswer(req.params.attemptId, req.params.answerId, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/attempts/${req.params.attemptId}/answers/${req.params.answerId}`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
@@ -347,63 +493,170 @@ router.delete('/attempts/:attemptId/answers/:answerId', requireAuth, async (req,
 
 router.get('/questions', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getQuestions(getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/questions',
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.get('/questions/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getQuestion(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/questions/${req.params.id}`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.get('/questions/:id/versions', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getQuestionVersions(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/questions/${req.params.id}/versions`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.post('/questions', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.createQuestion(req.body, getAccessToken(req));
-    res.status(201).json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/questions',
+      method: 'post',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.status(201).json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.put('/questions/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.updateQuestion(req.params.id, req.body, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/questions/${req.params.id}`,
+      method: 'put',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/questions/:id/version', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.deleteQuestionVersion(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/questions/${req.params.id}/version`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/questions/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.deleteQuestion(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/questions/${req.params.id}`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
@@ -412,81 +665,146 @@ router.delete('/questions/:id', requireAuth, async (req, res) => {
 
 router.get('/courses', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getCourses(getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/courses',
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.get('/courses/:id', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getCourse(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${req.params.id}`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.post('/courses', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.createCourse(req.body, getAccessToken(req));
-    res.status(201).json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: '/api/courses',
+      method: 'post',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.status(201).json(result.data);
   } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
-  }
-});
-
-router.put('/courses/:id', requireAuth, async (req, res) => {
-  try {
-    const data = await mainApiClient.updateCourse(req.params.id, req.body, getAccessToken(req));
-    res.json(data);
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
-  }
-});
-
-router.delete('/courses/:id', requireAuth, async (req, res) => {
-  try {
-    const data = await mainApiClient.deleteCourse(req.params.id, getAccessToken(req));
-    res.json(data);
-  } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.get('/courses/:id/students', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.getCourseStudents(req.params.id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${req.params.id}/students`,
+      method: 'get',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
-    res.status(error.status || 500).json({ error: error.message, details: error.data });
-  }
-});
-
-router.get('/courses/:id/tests', requireAuth, async (req, res) => {
-  try {
-    const data = await mainApiClient.getCourseTests(req.params.id, getAccessToken(req));
-    res.json(data);
-  } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.post('/courses/:id/enroll', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.enrollToCourse(req.params.id, req.body.user_id, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${req.params.id}/enroll`,
+      method: 'post',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
 
 router.delete('/courses/:courseId/enroll/:userId', requireAuth, async (req, res) => {
   try {
-    const data = await mainApiClient.unenrollFromCourse(req.params.courseId, req.params.userId, getAccessToken(req));
-    res.json(data);
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${req.params.courseId}/enroll/${req.params.userId}`,
+      method: 'delete',
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
   } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
     res.status(error.status || 500).json({ error: error.message, details: error.data });
   }
 });
