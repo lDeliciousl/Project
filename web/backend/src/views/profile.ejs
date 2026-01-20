@@ -215,17 +215,27 @@
 
         async function saveName() {
             const newName = document.getElementById('nameInput').value.trim();
+            console.log('[PROFILE] saveName called with newName:', newName);
+            console.log('[PROFILE] userId:', userId);
+            
             if (!newName) {
                 alert('Введите ФИО');
                 return;
             }
 
             try {
-                const res = await fetch('/api/users/' + userId + '/name', {
+                const url = '/api/users/' + userId + '/name';
+                console.log('[PROFILE] Fetch URL:', url);
+                console.log('[PROFILE] Request body:', JSON.stringify({ name: newName }));
+                
+                const res = await fetch(url, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: newName })
                 });
+
+                console.log('[PROFILE] Response status:', res.status);
+                console.log('[PROFILE] Response ok:', res.ok);
 
                 if (res.ok) {
                     document.getElementById('nameText').textContent = newName;
@@ -233,11 +243,14 @@
                     // Обновляем имя в шапке профиля
                     document.querySelector('.profile-name').textContent = newName;
                     document.querySelector('.avatar-large').textContent = newName.charAt(0).toUpperCase();
+                    console.log('[PROFILE] Name updated successfully to:', newName);
                 } else {
                     const err = await res.json();
+                    console.error('[PROFILE] Error response:', err);
                     alert('Ошибка: ' + (err.error || 'Не удалось обновить ФИО'));
                 }
             } catch (err) {
+                console.error('[PROFILE] Network error:', err);
                 alert('Ошибка сети: ' + err.message);
             }
         }

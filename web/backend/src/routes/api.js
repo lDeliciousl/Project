@@ -846,6 +846,31 @@ router.post('/courses', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/courses/:id', requireAuth, async (req, res) => {
+  try {
+    const sessionManager = require('../utils/session');
+    const authApiClient = require('../utils/authApiClient');
+    
+    const result = await mainApiClient.requestWithRefresh({
+      endpoint: `/api/courses/${req.params.id}`,
+      method: 'put',
+      data: req.body,
+      sessionToken: req.sessionToken,
+      sessionData: req.sessionData,
+      sessionManager,
+      authApiClient,
+      res
+    });
+    
+    res.json(result.data);
+  } catch (error) {
+    if (error.sessionExpired) {
+      return res.redirect('/');
+    }
+    res.status(error.status || 500).json({ error: error.message, details: error.data });
+  }
+});
+
 router.get('/courses/:id/students', requireAuth, async (req, res) => {
   try {
     const sessionManager = require('../utils/session');
@@ -976,7 +1001,7 @@ router.get('/users/:id/name', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/name`,
+      endpoint: `/api/db/users/${req.params.id}/name`,
       method: 'get',
       sessionToken: req.sessionToken,
       sessionData: req.sessionData,
@@ -1000,7 +1025,7 @@ router.put('/users/:id/name', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/name`,
+      endpoint: `/api/db/users/${req.params.id}/name`,
       method: 'put',
       data: { name: req.body.name },
       sessionToken: req.sessionToken,
@@ -1050,7 +1075,7 @@ router.get('/users/:id/attempts', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/tests`,
+      endpoint: `/api/db/users/${req.params.id}/tests`,
       method: 'get',
       sessionToken: req.sessionToken,
       sessionData: req.sessionData,
