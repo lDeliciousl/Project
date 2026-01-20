@@ -268,6 +268,47 @@
     </div>
     
     <div class="container">
+        <!-- ОТЛАДКА: test.is_active = <%= test.is_active %> (тип: <%= typeof test.is_active %>) -->
+        <!-- Проверка активности теста -->
+        <% if (!test.is_active) { %>
+            <div class="test-inactive">
+                <h2>Тест недоступен</h2>
+                <a href="/" class="btn btn-primary">Вернуться</a>
+            </div>
+            <style>
+                .test-inactive {
+                    text-align: center;
+                    padding: 60px 20px;
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                    margin: 40px auto;
+                    max-width: 400px;
+                }
+                .test-inactive h2 {
+                    color: #dc3545;
+                    margin-bottom: 30px;
+                    font-size: 24px;
+                }
+                .btn {
+                    padding: 12px 30px;
+                    border-radius: 8px;
+                    font-size: 16px;
+                    cursor: pointer;
+                    border: none;
+                    transition: all 0.3s;
+                    text-decoration: none;
+                    display: inline-block;
+                }
+                .btn-primary {
+                    background: #667eea;
+                    color: white;
+                }
+                .btn-primary:hover {
+                    background: #5a67d8;
+                }
+            </style>
+        <% } else { %>
         <!-- Заголовок теста -->
         <div class="test-header">
             <h1 class="test-title"><%= test.name %></h1>
@@ -554,6 +595,7 @@
                 document.getElementById('resultMessage').textContent = 'Ошибка при завершении теста.';
             }
         }
+        <% } // Закрываем else блок для активного теста %>
     </script>
 </body>
 </html>

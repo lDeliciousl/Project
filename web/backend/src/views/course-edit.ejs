@@ -426,7 +426,7 @@
                     <% if (tests && tests.length > 0) { %>
                         <div class="test-list">
                             <% tests.forEach(test => { %>
-                                <div class="test-card">
+                                <div class="test-card" data-test-id="<%= test.id %>">
                                     <div class="test-header">
                                         <div>
                                             <div class="test-title"><%= test.name %></div>
@@ -597,29 +597,6 @@
             }
         }
 
-        async function toggleTestActive(testId, isActive) {
-            try {
-                const accessToken = '<%= sessionData?.accessToken || "" %>';
-                const response = await fetch('/api/tests/' + testId + '/activate', {
-                    method: 'PUT',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`
-                    },
-                    body: JSON.stringify({ is_active: isActive })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    alert('Ошибка: ' + (error.error || 'Не удалось изменить статус теста'));
-                    window.location.reload();
-                }
-            } catch (err) {
-                alert('Ошибка сети: ' + err.message);
-                window.location.reload();
-            }
-        }
-
         async function deleteTest(testId) {
             if (!confirm('Удалить этот тест? Это действие нельзя отменить.')) return;
 
@@ -681,6 +658,56 @@
                 }
             } catch (err) {
                 alert('Ошибка сети: ' + err.message);
+            }
+        }
+
+        async function toggleTestActive(testId, isActive) {
+            console.log('[TOGGLE] Starting toggleTestActive:', testId, isActive);
+            
+            try {
+                const accessToken = '<%= sessionData?.accessToken || "" %>';
+                console.log('[TOGGLE] Access token present:', !!accessToken);
+                
+                const url = '/api/tests/' + testId + '/activate';
+                console.log('[TOGGLE] Fetch URL:', url);
+                
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+
+                console.log('[TOGGLE] Response status:', response.status);
+                console.log('[TOGGLE] Response ok:', response.ok);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    console.error('[TOGGLE] Error response:', error);
+                    alert('Ошибка: ' + (error.error || 'Не удалось изменить статус теста'));
+                    window.location.reload();
+                    return;
+                }
+
+                const result = await response.json();
+                console.log('[TOGGLE] Success response:', result);
+
+                // Обновляем статус в UI без перезагрузки
+                const statusElement = document.querySelector(`[data-test-id="${testId}"] .test-status`);
+                if (statusElement) {
+                    statusElement.textContent = isActive ? 'Активен' : 'Неактивен';
+                    statusElement.className = `test-status ${isActive ? 'status-active' : 'status-inactive'}`;
+                    console.log('[TOGGLE] UI updated successfully');
+                }
+
+                // Показываем уведомление
+                const message = isActive ? 'Тест активирован' : 'Тест деактивирован';
+                console.log('[TOGGLE] Success:', message);
+            } catch (err) {
+                alert('Ошибка сети: ' + err.message);
+                window.location.reload();
             }
         }
 

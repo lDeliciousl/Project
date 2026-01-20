@@ -6,6 +6,7 @@
 #include <locale>
 #include <vector>
 #include <string>
+#include <cstring>
 #include "../include/utils/config.hpp"
 
 // Для кодировки (если нужно)
@@ -313,7 +314,7 @@ Test Database::get_test_details(const std::string& test_id) {
     
     // 1. Get Test Info
     std::stringstream testQuery;
-    testQuery << "SELECT id, name, description, course_id, created_by FROM tests WHERE id = '" << test_id << "'";
+    testQuery << "SELECT id, name, description, course_id, created_by, is_active FROM tests WHERE id = '" << test_id << "'";
     PGresult* resTest = PQexec(pImpl->connection, testQuery.str().c_str());
     
     if (PQresultStatus(resTest) == PGRES_TUPLES_OK && PQntuples(resTest) > 0) {
@@ -322,6 +323,7 @@ Test Database::get_test_details(const std::string& test_id) {
         test.description = PQgetvalue(resTest, 0, 2);
         test.course_id = PQgetvalue(resTest, 0, 3);
         test.created_by = PQgetvalue(resTest, 0, 4);
+        test.is_active = (strcmp(PQgetvalue(resTest, 0, 5), "t") == 0);
     } else {
         PQclear(resTest);
         return test;

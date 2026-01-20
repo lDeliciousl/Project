@@ -132,13 +132,6 @@
                             <label class="form-label">Описание</label>
                             <textarea class="form-textarea" name="description"><%= test.description || '' %></textarea>
                         </div>
-                        <div class="toggle-row">
-                            <span class="toggle-label">Тест активен</span>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="isActiveToggle" <%= test.is_active ? 'checked' : '' %> onchange="toggleTestActive(this.checked)">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
                         <button type="submit" class="btn btn-primary" style="width:100%">Сохранить настройки</button>
                     </form>
                 </div>
@@ -244,29 +237,52 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: form.name.value, description: form.description.value })
                 });
-                if (res.ok) { alert('Тест обновлён'); location.reload(); }
-                else { const err = await res.json(); alert('Ошибка: ' + (err.error || 'Не удалось обновить')); }
-            } catch (err) { alert('Ошибка сети: ' + err.message); }
-        }
 
-        async function toggleTestActive(isActive) {
-            try {
-                const res = await fetch('/api/tests/' + testId + '/activate', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_active: isActive })
-                });
-                if (!res.ok) { const err = await res.json(); alert('Ошибка: ' + (err.error || '')); location.reload(); }
-            } catch (err) { alert('Ошибка сети: ' + err.message); location.reload(); }
-        }
+                <div>
+                    <div class="section">
+                        <div class="section-header">
+                            <h2 class="section-title">Вопросы теста (<span id="questionsCount"><%= test.questions ? test.questions.length : 0 %></span>)</h2>
+                            <button class="btn btn-primary btn-sm" onclick="saveQuestionsOrder()" id="saveOrderBtn" style="display:none">💾 Сохранить порядок</button>
+                        </div>
+                        
+                        <div class="questions-container" id="questionsContainer">
+                            <% if (test.questions && test.questions.length > 0) { %>
+                                <% test.questions.forEach((q, index) => { %>
+                                    <div class="question-item" draggable="true" data-id="<%= q.id %>" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)">
+                                        <span class="drag-handle">⠿</span>
+                                        <span class="question-number"><%= index + 1 %></span>
+                                        <div class="question-content">
+                                            <div class="question-title"><%= q.title || 'Вопрос' %></div>
+                                            <div class="question-text"><%= q.text ? q.text.substring(0, 100) + (q.text.length > 100 ? '...' : '') : '' %></div>
+                                            <div class="question-meta">
+                                                <span>v<%= q.version || 1 %></span>
+                                                <span><%= q.options ? q.options.length : 0 %> вариантов</span>
+                                            </div>
+                                        </div>
+                                        <div class="question-actions">
+                                            <a href="/teacher/question/<%= q.id %>" class="btn btn-outline btn-sm">✏️</a>
+                                            <button class="btn btn-danger btn-sm" onclick="removeQuestion('<%= q.id %>')">✕</button>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            <% } else { %>
+                                <div class="empty-state" id="emptyQuestions">
+                                    <div class="empty-state-icon">📝</div>
+                                    <p>В тесте пока нет вопросов</p>
+                                    <p style="margin-top: 10px; font-size: 14px;">Добавьте вопросы из банка или создайте новые</p>
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        async function addQuestionToTest(questionId) {
-            try {
-                const accessToken = '<%= sessionData?.accessToken || "" %>';
-                const res = await fetch('/api/tests/' + testId + '/questions', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
+        <script>
+            const testId = '<%= test.id %>';
+            const courseId = '<%= test.course_id || "" %>';
+            let orderChanged = false;
+            let draggedElement = null;
                         'Authorization': `Bearer ${accessToken}`
                     },
                     body: JSON.stringify({ question_id: questionId })

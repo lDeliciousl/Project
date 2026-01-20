@@ -947,6 +947,29 @@ void CreateTestAttemptHandler(const httplib::Request& req, httplib::Response& re
             return;
         }
 
+        // Проверяем что тест активен
+        const char* activeParams[1];
+        activeParams[0] = test_id.c_str();
+        PGresult* activeCheck = PQexecParams(conn,
+            "SELECT is_active FROM tests WHERE id = $1",
+            1, nullptr, activeParams, nullptr, nullptr, 0);
+
+        if (PQresultStatus(activeCheck) != PGRES_TUPLES_OK || PQntuples(activeCheck) == 0) {
+            res.status = 404;
+            res.set_content("{\"error\": \"Test not found\"}", "application/json");
+            PQclear(activeCheck);
+            return;
+        }
+
+        bool is_active = strcmp(PQgetvalue(activeCheck, 0, 0), "t") == 0;
+        PQclear(activeCheck);
+
+        if (!is_active) {
+            res.status = 403;
+            res.set_content("{\"error\": \"Test is not active\"}", "application/json");
+            return;
+        }
+
         // Проверяем, есть ли уже попытка у этого пользователя (завершённая или в процессе)
         const char* checkParams[2];
         checkParams[0] = test_id.c_str();
@@ -1268,6 +1291,7 @@ void GetTestDetailsHandler(const httplib::Request& req, httplib::Response& res) 
     response["description"] = test.description;
     response["course_id"] = test.course_id;
     response["created_by"] = test.created_by;
+    response["is_active"] = test.is_active;
     
     nlohmann::json questions = nlohmann::json::array();
     for (const auto& q : test.questions) {
@@ -2053,14 +2077,21 @@ void UnenrollUserHandler(const httplib::Request& req, httplib::Response& res) {
 
 void ActivateTestHandler(const httplib::Request& req, httplib::Response& res) {
     std::string testId = matchToString(req.matches, 1);
+    std::cout << "[ActivateTestHandler] Called for test ID: " << testId << std::endl;
+    std::cout << "[ActivateTestHandler] Request body: " << req.body << std::endl;
+    
     auto ctx = CheckToken(req);
     if (Unauthorized(res, ctx)) return;
+
+    std::cout << "[ActivateTestHandler] Auth passed for user: " << ctx.user_id << std::endl;
 
     bool is_active = true;
     try {
         auto body = nlohmann::json::parse(req.body);
         is_active = body.at("is_active").get<bool>();
+        std::cout << "[ActivateTestHandler] Setting is_active to: " << (is_active ? "true" : "false") << std::endl;
     } catch (...) {
+        std::cout << "[ActivateTestHandler] Invalid JSON body" << std::endl;
         res.status = 400;
         res.set_content("{\"error\": \"Invalid request\"}", "application/json");
         return;
@@ -2103,6 +2134,8 @@ void ActivateTestHandler(const httplib::Request& req, httplib::Response& res) {
     }
 
     std::string activeStr = is_active ? "true" : "false";
+    std::cout << "[ActivateTestHandler] Executing SQL: UPDATE tests SET is_active = " << activeStr << " WHERE id = " << testId << std::endl;
+    
     const char* paramValues[2];
     paramValues[0] = activeStr.c_str();
     paramValues[1] = testId.c_str();
@@ -2111,11 +2144,14 @@ void ActivateTestHandler(const httplib::Request& req, httplib::Response& res) {
         2, nullptr, paramValues, nullptr, nullptr, 0);
 
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+        std::cout << "[ActivateTestHandler] SQL ERROR: " << PQerrorMessage(conn) << std::endl;
         res.status = 500;
         res.set_content("{\"error\": \"Update failed\"}", "application/json");
         PQclear(result);
         return;
     }
+
+    std::cout << "[ActivateTestHandler] SQL SUCCESS: Test " << testId << " is_active set to " << activeStr << std::endl;
 
     if (!is_active) {
         const char* finishParams[1];

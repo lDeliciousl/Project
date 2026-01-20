@@ -272,6 +272,10 @@ router.post('/tests', requireAuth, async (req, res) => {
 
 router.put('/tests/:id/activate', requireAuth, async (req, res) => {
   try {
+    console.log('[API] PUT /tests/' + req.params.id + '/activate called');
+    console.log('[API] Request body:', req.body);
+    console.log('[API] User ID:', req.sessionData?.userData?.id);
+    
     const sessionManager = require('../utils/session');
     const authApiClient = require('../utils/authApiClient');
     
@@ -286,6 +290,7 @@ router.put('/tests/:id/activate', requireAuth, async (req, res) => {
       res
     });
     
+    console.log('[API] Main module response:', result.data);
     res.json(result.data);
   } catch (error) {
     if (error.sessionExpired) {

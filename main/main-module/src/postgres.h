@@ -58,6 +58,7 @@ struct Test {
     std::string description;
     std::string course_id;
     std::string created_by;
+    bool is_active;
     std::vector<Question> questions;
 };
 
