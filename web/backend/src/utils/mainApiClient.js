@@ -66,6 +66,14 @@ class MainApiClient {
               (latestRefreshToken !== refreshToken || 
                (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
             console.log('[MainApiClient] Токены уже обновлены в Redis, повторяем запрос без refresh...');
+            
+            // Синхронизируем localStorage с актуальными токенами
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem('access_token', latestAccessToken);
+              localStorage.setItem('refresh_token', latestRefreshToken);
+              console.log('[MainApiClient] localStorage синхронизирован с Redis');
+            }
+            
             const retryResult = await this.request(endpoint, method, data, latestAccessToken);
             return {
               data: retryResult,
@@ -96,6 +104,14 @@ class MainApiClient {
                 (latestRefreshToken !== refreshToken || 
                  (latestUpdatedAt && latestUpdatedAt !== sessionData.updatedAt))) {
               console.log('[MainApiClient] Refresh упал, но токены уже обновлены в Redis, повторяем запрос...');
+              
+              // Синхронизируем localStorage с актуальными токенами
+              if (typeof window !== 'undefined' && window.localStorage) {
+                localStorage.setItem('access_token', latestAccessToken);
+                localStorage.setItem('refresh_token', latestRefreshToken);
+                console.log('[MainApiClient] localStorage синхронизирован после ошибки refresh');
+              }
+              
               const retryResult = await this.request(endpoint, method, data, latestAccessToken);
               return {
                 data: retryResult,
@@ -131,6 +147,13 @@ class MainApiClient {
             refreshToken: refreshResult.refresh_token,
             updatedAt: new Date().toISOString()
           });
+
+          // Обновляем localStorage если в браузере
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('access_token', refreshResult.access_token);
+            localStorage.setItem('refresh_token', refreshResult.refresh_token);
+            console.log('[MainApiClient] localStorage обновлен автоматически');
+          }
 
           console.log('[MainApiClient] Токены обновлены, повторяем запрос...');
 
