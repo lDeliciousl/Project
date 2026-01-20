@@ -8,6 +8,7 @@ export interface AuthClient {
   verifyLoginToken(loginToken: string): Promise<AuthVerifyResponse>;
   generateAuthCode(loginToken: string, email: string): Promise<{ code: string }>;
   verifyAuthCode(loginToken: string, code: string, refreshToken?: string): Promise<void>;
+  verifyConfirmCode(code: string, refreshToken: string): Promise<void>;
   refreshTokens(refreshToken: string): Promise<RefreshResponse>;
   logout(refreshToken: string): Promise<void>;
 }
@@ -53,6 +54,13 @@ class HttpAuthClient implements AuthClient {
       payload.refresh_token = refreshToken;
     }
     await this.client.post('/api/auth/code/verify', payload);
+  }
+
+  async verifyConfirmCode(code: string, refreshToken: string): Promise<void> {
+    await this.client.post('/api/auth/confirm/verify', {
+      code,
+      refresh_token: refreshToken
+    });
   }
 
   async refreshTokens(refreshToken: string): Promise<RefreshResponse> {
@@ -112,6 +120,10 @@ class MockAuthClient implements AuthClient {
   }
 
   async verifyAuthCode(): Promise<void> {
+    return;
+  }
+
+  async verifyConfirmCode(): Promise<void> {
     return;
   }
 

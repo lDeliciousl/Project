@@ -1,6 +1,6 @@
 import { UserStatus } from './types';
 
-export type PendingAction = 'awaiting_email' | 'awaiting_code';
+export type PendingAction = 'awaiting_confirm';
 
 export type UserState = {
   status: UserStatus;
