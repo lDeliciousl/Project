@@ -1,6 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import { parseCommand } from '../domain/commands';
-import { createAnonymousState, createAuthorizedState, UserState } from '../domain/state';
+import {
+  createAnonymousState,
+  createAuthorizedState,
+  TestFlowQuestion,
+  TestFlowState,
+  UserState
+} from '../domain/state';
 import { BotResponse, Command, LoginType, TelegramUpdate } from '../domain/types';
 import { AuthClient } from '../integrations/authClient';
 import { MainClient } from '../integrations/mainClient';
@@ -166,6 +172,110 @@ const invalidCommand = (): BotResponse => ({
   messages: [{ text: '⚠️ Нет такой команды. Используйте /help.', options: baseMessageOptions }]
 });
 
+const FLOW_OPTION_ROWS = 2;
+
+const normalizeTestQuestions = (payload: any): TestFlowQuestion[] => {
+  const rawQuestions = payload?.questions;
+  if (!Array.isArray(rawQuestions)) {
+    return [];
+  }
+  return rawQuestions
+    .map((question: any) => {
+      const options = Array.isArray(question?.options)
+        ? question.options
+            .map((option: any) => ({
+              id: String(option?.id ?? ''),
+              text: String(option?.text ?? '')
+            }))
+            .filter((option: { id: string; text: string }) => option.id && option.text)
+        : [];
+      return {
+        id: String(question?.id ?? ''),
+        text: String(question?.text ?? ''),
+        options
+      };
+    })
+    .filter((question: TestFlowQuestion) => question.id && question.text && question.options.length > 0);
+};
+
+const buildOptionKeyboard = (optionsCount: number): string[][] => {
+  const rows: string[][] = [];
+  for (let i = 0; i < optionsCount; i += FLOW_OPTION_ROWS) {
+    rows.push(
+      Array.from({ length: Math.min(FLOW_OPTION_ROWS, optionsCount - i) }, (_, index) =>
+        String(i + index + 1)
+      )
+    );
+  }
+  rows.push(['Следующий', 'Завершить']);
+  return rows;
+};
+
+const buildQuestionMessage = (flow: TestFlowState): BotResponse => {
+  const question = flow.questions[flow.current_index];
+  if (!question) {
+    return {
+      messages: [
+        {
+          text: 'Вопросы закончились. Нажмите «Завершить» или выполните /test_finish.',
+          options: { reply_markup: { keyboard: [['Завершить']], resize_keyboard: true } }
+        }
+      ]
+    };
+  }
+  const optionsText = question.options
+    .map((option, index) => `${index + 1}) ${option.text}`)
+    .join('\n');
+  const text = [
+    `Попытка: ${flow.attempt_id}`,
+    `🧪 Вопрос ${flow.current_index + 1}/${flow.questions.length}`,
+    question.text,
+    '',
+    optionsText
+  ].join('\n');
+  return {
+    messages: [
+      {
+        text,
+        options: {
+          disable_web_page_preview: true,
+          reply_markup: {
+            keyboard: buildOptionKeyboard(question.options.length),
+            resize_keyboard: true,
+            one_time_keyboard: true
+          }
+        }
+      }
+    ]
+  };
+};
+
+const parseOptionIndex = (text: string): number | null => {
+  const normalized = text.trim();
+  if (!/^\d+$/.test(normalized)) {
+    return null;
+  }
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+};
+
+const isNextText = (text: string): boolean =>
+  ['следующий', 'далее', 'next'].includes(text.trim().toLowerCase());
+
+const isFinishText = (text: string): boolean =>
+  ['завершить', 'finish', 'закончить'].includes(text.trim().toLowerCase());
+
+const clearTestFlow = async (state: UserState, store: StateStore, chatId: string) => {
+  if (!state.test_flow) {
+    return;
+  }
+  await store.set(chatId, {
+    ...state,
+    test_flow: undefined,
+    updated_at: new Date().toISOString()
+  });
+};
+
 const isLoginCommand = (command: Command) => command.name === 'login';
 
 const isActionsCommand = (command: Command) => command.name === 'actions';
@@ -212,13 +322,255 @@ const refreshAuthorizedState = async (
   }
   try {
     const tokens = await authClient.refreshTokens(state.refresh_token);
-    const nextState = createAuthorizedState(tokens.access_token, tokens.refresh_token);
+    const nextState: UserState = {
+      ...createAuthorizedState(tokens.access_token, tokens.refresh_token),
+      test_flow: state.test_flow
+    };
     await store.set(chatId, nextState);
     return nextState;
   } catch {
     await store.delete(chatId);
     return null;
   }
+};
+
+const buildTestFlowState = (
+  testId: string,
+  attemptId: string,
+  questions: TestFlowQuestion[]
+): TestFlowState => ({
+  test_id: testId,
+  attempt_id: attemptId,
+  current_index: 0,
+  questions,
+  updated_at: new Date().toISOString()
+});
+
+const handleTestStart = async (
+  command: Command,
+  state: UserState,
+  mainClient: MainClient,
+  store: StateStore,
+  chatId: string
+): Promise<BotResponse> => {
+  const testId = command.args[1] || command.args[0];
+  if (!testId) {
+    return {
+      messages: [{ text: 'Нужен test_id. Пример: /test_start <test_id>' }]
+    };
+  }
+  if (!state.access_token) {
+    return promptLogin();
+  }
+  try {
+    const attempt = await mainClient.createTestAttempt(state.access_token, { test_id: testId });
+    const attemptId =
+      (attempt as any)?.attempt_id ||
+      (attempt as any)?.attemptId ||
+      (attempt as any)?.id ||
+      '';
+    const attemptIdString = attemptId ? String(attemptId) : '';
+    if (!attemptIdString) {
+      return {
+        messages: [{ text: 'Не удалось создать попытку. Попробуйте позже.' }]
+      };
+    }
+    const test = await mainClient.getTestDetails(state.access_token, testId);
+    const questions = normalizeTestQuestions(test);
+    if (questions.length === 0) {
+      await clearTestFlow(state, store, chatId);
+      return {
+        messages: [
+          {
+            text: 'В тесте нет вопросов. Попробуйте позже.',
+            options: { reply_markup: { remove_keyboard: true } }
+          }
+        ]
+      };
+    }
+    const flow = buildTestFlowState(testId, attemptIdString, questions);
+    await store.set(chatId, { ...state, test_flow: flow, updated_at: new Date().toISOString() });
+    return buildQuestionMessage(flow);
+  } catch (error) {
+    const detail = extractErrorDetail(error);
+    return {
+      messages: [{ text: detail ? `Ошибка: ${detail}` : 'Не удалось начать тест.' }]
+    };
+  }
+};
+
+const advanceFlow = async (
+  state: UserState,
+  store: StateStore,
+  chatId: string,
+  messagePrefix?: string
+): Promise<BotResponse> => {
+  if (!state.test_flow) {
+    return invalidCommand();
+  }
+  const nextIndex = state.test_flow.current_index + 1;
+  if (nextIndex >= state.test_flow.questions.length) {
+    await store.set(chatId, {
+      ...state,
+      test_flow: { ...state.test_flow, current_index: nextIndex, updated_at: new Date().toISOString() },
+      updated_at: new Date().toISOString()
+    });
+    return {
+      messages: [
+        {
+          text: `${messagePrefix ? `${messagePrefix}\n` : ''}Вопросы закончились. Нажмите «Завершить».`,
+          options: {
+            reply_markup: { keyboard: [['Завершить']], resize_keyboard: true, one_time_keyboard: true }
+          }
+        }
+      ]
+    };
+  }
+  const updatedFlow = {
+    ...state.test_flow,
+    current_index: nextIndex,
+    updated_at: new Date().toISOString()
+  };
+  await store.set(chatId, { ...state, test_flow: updatedFlow, updated_at: new Date().toISOString() });
+  const questionMessage = buildQuestionMessage(updatedFlow);
+  if (!messagePrefix) {
+    return questionMessage;
+  }
+  return {
+    messages: [{ text: messagePrefix }, ...questionMessage.messages]
+  };
+};
+
+const handleTestAnswer = async (
+  command: Command,
+  state: UserState,
+  mainClient: MainClient,
+  store: StateStore,
+  chatId: string
+): Promise<BotResponse> => {
+  const hasAction = command.args[0] === 'answer';
+  const offset = hasAction ? 1 : 0;
+  const attemptId = command.args[offset];
+  const questionId = command.args[offset + 1];
+  const optionId = command.args[offset + 2];
+  if (!attemptId || !questionId || !optionId) {
+    return { messages: [{ text: 'Нужно: /test_answer <attempt_id> <question_id> <option_id>' }] };
+  }
+  if (!state.access_token) {
+    return promptLogin();
+  }
+  try {
+    await mainClient.createAnswer(state.access_token, attemptId, questionId, optionId);
+  } catch (error) {
+    const detail = extractErrorDetail(error);
+    if (detail && detail.toLowerCase().includes('attempt not found')) {
+      await clearTestFlow(state, store, chatId);
+      return {
+        messages: [
+          {
+            text: 'Попытка не найдена. Запустите тест снова: /test_start <test_id>'
+          }
+        ]
+      };
+    }
+    return {
+      messages: [{ text: detail ? `Ошибка: ${detail}` : 'Не удалось сохранить ответ.' }]
+    };
+  }
+  if (!state.test_flow || state.test_flow.attempt_id !== attemptId) {
+    return { messages: [{ text: 'Ответ сохранён.' }] };
+  }
+  return advanceFlow(state, store, chatId, 'Ответ сохранён.');
+};
+
+const handleTestFinish = async (
+  command: Command,
+  state: UserState,
+  mainClient: MainClient,
+  store: StateStore,
+  chatId: string
+): Promise<BotResponse> => {
+  const attemptId = command.args[1] || command.args[0] || state.test_flow?.attempt_id;
+  if (!attemptId) {
+    return { messages: [{ text: 'Нужен attempt_id. Пример: /test_finish <attempt_id>' }] };
+  }
+  if (!state.access_token) {
+    return promptLogin();
+  }
+  try {
+    const result = await mainClient.finishAttempt(state.access_token, attemptId);
+    const score = (result as any)?.score;
+    const maxScore = (result as any)?.max_score;
+    const scoreLine =
+      Number.isFinite(Number(score)) && Number.isFinite(Number(maxScore))
+        ? `Баллы: ${Number(score)}/${Number(maxScore)}`
+        : '';
+    await clearTestFlow(state, store, chatId);
+    return {
+      messages: [
+        {
+          text: ['Попытка завершена.', scoreLine].filter(Boolean).join('\n'),
+          options: { reply_markup: { remove_keyboard: true } }
+        }
+      ]
+    };
+  } catch (error) {
+    const detail = extractErrorDetail(error);
+    return {
+      messages: [{ text: detail ? `Ошибка: ${detail}` : 'Не удалось завершить попытку.' }]
+    };
+  }
+};
+
+const handleTestNext = async (
+  state: UserState,
+  store: StateStore,
+  chatId: string
+): Promise<BotResponse> => {
+  if (!state.test_flow) {
+    return { messages: [{ text: 'Нет активного теста. Используйте /test_start.' }] };
+  }
+  return advanceFlow(state, store, chatId);
+};
+
+const handleTestTextInput = async (
+  command: Command,
+  state: UserState,
+  mainClient: MainClient,
+  store: StateStore,
+  chatId: string
+): Promise<BotResponse | null> => {
+  if (!state.test_flow) {
+    return null;
+  }
+  const text = command.args[0] || '';
+  if (isFinishText(text)) {
+    return handleTestFinish({ ...command, args: [state.test_flow.attempt_id] }, state, mainClient, store, chatId);
+  }
+  if (isNextText(text)) {
+    return handleTestNext(state, store, chatId);
+  }
+  const optionIndex = parseOptionIndex(text);
+  if (!optionIndex) {
+    return null;
+  }
+  const question = state.test_flow.questions[state.test_flow.current_index];
+  if (!question) {
+    return null;
+  }
+  const option = question.options[optionIndex - 1];
+  if (!option) {
+    return {
+      messages: [{ text: 'Такого варианта нет. Выберите номер из списка.' }]
+    };
+  }
+  return handleTestAnswer(
+    { ...command, args: [state.test_flow.attempt_id, question.id, option.id] },
+    state,
+    mainClient,
+    store,
+    chatId
+  );
 };
 
 const handleAuthorizedCommand = async (
@@ -266,6 +618,29 @@ const handleAuthorizedCommand = async (
     }
   }
 
+  if (command.name === 'test') {
+    const action = command.args[0];
+    if (action === 'start') {
+      return handleTestStart(command, state, mainClient, store, chatId);
+    }
+    if (action === 'answer') {
+      return handleTestAnswer(command, state, mainClient, store, chatId);
+    }
+    if (action === 'finish') {
+      return handleTestFinish(command, state, mainClient, store, chatId);
+    }
+    if (action === 'next') {
+      return handleTestNext(state, store, chatId);
+    }
+  }
+
+  if (command.name === 'text') {
+    const flowResponse = await handleTestTextInput(command, state, mainClient, store, chatId);
+    if (flowResponse) {
+      return flowResponse;
+    }
+  }
+
   const actionResponse = await handleActionCommand(
     command,
     state.access_token || '',
@@ -290,6 +665,18 @@ const handleAuthorizedCommand = async (
         return retryResponse;
       }
       return invalidCommand();
+    }
+    if (command.name === 'attempt' && command.args[0] === 'finish' && state.test_flow) {
+      const attemptId = command.args[1];
+      if (attemptId && attemptId === state.test_flow.attempt_id) {
+        await clearTestFlow(state, store, chatId);
+        return {
+          messages: [
+            ...actionResponse.messages,
+            { text: 'Клавиатура скрыта.', options: { reply_markup: { remove_keyboard: true } } }
+          ]
+        };
+      }
     }
     return actionResponse;
   }
@@ -318,6 +705,9 @@ export const handleUpdate = async (
         command = { ...command, name: base, args: [action, ...command.args] };
       }
     }
+  }
+  if (command.name === 'answer' && command.args.length >= 3) {
+    command = { ...command, name: 'test', args: ['answer', ...command.args] };
   }
   const chatId = update.chat_id;
 

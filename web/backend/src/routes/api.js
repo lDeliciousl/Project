@@ -977,7 +977,7 @@ router.get('/users', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: '/api/users',
+      endpoint: '/api/db/users',
       method: 'get',
       sessionToken: req.sessionToken,
       sessionData: req.sessionData,
@@ -1050,7 +1050,7 @@ router.get('/users/:id/courses', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/courses`,
+      endpoint: `/api/db/users/${req.params.id}/courses`,
       method: 'get',
       sessionToken: req.sessionToken,
       sessionData: req.sessionData,
@@ -1117,7 +1117,7 @@ router.put('/users/:id/roles', requireAuth, async (req, res) => {
     // Используем auth модуль для обновления ролей
     const authApiClient = require('../utils/authApiClient');
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/roles`,
+      endpoint: `/api/db/users/${req.params.id}/roles`,
       method: 'put',
       data: { roles: req.body.roles },
       sessionToken: req.sessionToken,
@@ -1138,7 +1138,7 @@ router.get('/users/:id/block', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/block`,
+      endpoint: `/api/db/users/${req.params.id}/block`,
       method: 'get',
       sessionToken: req.sessionToken,
       sessionData: req.sessionData,
@@ -1162,7 +1162,7 @@ router.put('/users/:id/block', requireAuth, async (req, res) => {
     const authApiClient = require('../utils/authApiClient');
     
     const result = await mainApiClient.requestWithRefresh({
-      endpoint: `/api/users/${req.params.id}/block`,
+      endpoint: `/api/db/users/${req.params.id}/block`,
       method: 'put',
       data: { is_blocked: req.body.is_blocked },
       sessionToken: req.sessionToken,
@@ -1248,7 +1248,7 @@ router.get('/me', requireAuth, async (req, res) => {
     
     try {
       const nameResult = await mainApiClient.requestWithRefresh({
-        endpoint: `/api/users/${user.id}/name`,
+        endpoint: `/api/db/users/${user.id}/name`,
         method: 'get',
         sessionToken: req.sessionToken,
         sessionData: req.sessionData,
@@ -1265,7 +1265,7 @@ router.get('/me', requireAuth, async (req, res) => {
     
     try {
       const coursesResult = await mainApiClient.requestWithRefresh({
-        endpoint: `/api/users/${user.id}/courses`,
+        endpoint: `/api/db/users/${user.id}/courses`,
         method: 'get',
         sessionToken: req.sessionToken,
         sessionData: req.sessionData,
@@ -1281,7 +1281,7 @@ router.get('/me', requireAuth, async (req, res) => {
     
     try {
       const testsResult = await mainApiClient.requestWithRefresh({
-        endpoint: `/api/users/${user.id}/tests`,
+        endpoint: `/api/db/users/${user.id}/tests`,
         method: 'get',
         sessionToken: req.sessionToken,
         sessionData: req.sessionData,

@@ -140,9 +140,8 @@ async function sessionMiddleware(req, res, next) {
     }
   }
 
-  // Временно упрощаем проверку для авторизованных пользователей
+  // Упрощаем проверку для авторизованных пользователей
   if (sessionData.status === 'authenticated') {
-    console.log('[SESSION] Авторизованный пользователь:', sessionData.userData?.email);
     // Добавляем пользователя в req для использования в других middleware
     req.user = sessionData.userData;
   }

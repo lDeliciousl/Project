@@ -25,6 +25,22 @@ const readJson = (req: http.IncomingMessage): Promise<unknown> =>
     });
   });
 
+const extractErrorDetail = (error: unknown): string | undefined => {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const maybeError = error as {
+    response?: { data?: { error?: string; message?: string; detail?: string } };
+    message?: string;
+  };
+  return (
+    maybeError.response?.data?.detail ||
+    maybeError.response?.data?.error ||
+    maybeError.response?.data?.message ||
+    maybeError.message
+  );
+};
+
 export const startBotLogicServer = (store: StateStore): http.Server => {
   const authClient = createAuthClient();
   const mainClient = createMainClient();
@@ -39,10 +55,26 @@ export const startBotLogicServer = (store: StateStore): http.Server => {
 
       if (req.method === 'POST' && req.url === '/api/telegram/update') {
         const body = await readJson(req);
-        const response = await handleUpdate(body as any, store, authClient, mainClient);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(response));
-        return;
+        try {
+          const response = await handleUpdate(body as any, store, authClient, mainClient);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(response));
+          return;
+        } catch (error) {
+          logger.error({ error }, 'BotLogic handleUpdate failed');
+          const detail = extractErrorDetail(error);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              messages: [
+                {
+                  text: detail ? `Ошибка обработки: ${detail}` : 'Ошибка обработки. Попробуйте позже.'
+                }
+              ]
+            })
+          );
+          return;
+        }
       }
 
       if (req.method === 'POST' && req.url === '/api/telegram/cron/auth-check') {
