@@ -12,7 +12,7 @@ const actionSections: string[] = [
     '• /user_grades <user_id> — оценки пользователя',
     '• /user_tests <user_id> — тесты пользователя',
     '• /user_roles <user_id> — роли пользователя',
-    '• /user_set_roles <user_id> <json_roles> — обновить роли',
+    '• /user_set_roles <user_id> <json_roles> — обновить роли (пример: ["student","teacher"])',
     '• /user_block <user_id> — статус блокировки',
     '• /user_set_block <user_id> <true|false> — блок/разблок',
     '• /user_add <json_body> — создать пользователя'
@@ -33,14 +33,16 @@ const actionSections: string[] = [
     '🧪 Тесты:',
     '• /tests — список тестов',
     '• /test <test_id> — информация о тесте',
+    '• /test_start <test_id> — начать прохождение',
+    '  ↳ после запуска бот пишет: "Попытка: <attempt_id>"',
+    '• /test_answer <attempt_id> <question_id> <option_id> — ответить',
+    '• /test_finish <attempt_id> — завершить попытку',
+    '• /test_next — следующий вопрос',
     '• /test_create <json_body> — создать тест',
     '• /test_activate <test_id> <true|false> — активировать/деактивировать',
     '• /test_add_question <test_id> <question_id> — добавить вопрос',
     '• /test_remove_question <test_id> <question_id> — удалить вопрос',
-    '• /attempt_create <json_body> — создать попытку',
-    '• /attempt <attempt_id> — информация о попытке',
-    '• /attempt_finish <attempt_id> — завершить попытку',
-    '• /attempt_answer <attempt_id> <answer_id> <option_id> — ответить на вопрос'
+    '• /attempt <attempt_id> — информация о попытке'
   ].join('\n'),
   [
     '❓ Вопросы:',
@@ -258,7 +260,7 @@ const FIELD_HINTS: Record<string, string> = {
   course_id: 'получить: /courses',
   test_id: 'получить: /tests',
   question_id: 'получить: /questions',
-  attempt_id: 'получить: /attempt <attempt_id>',
+  attempt_id: 'получить: /test_start <test_id> (бот пишет attempt_id) или /attempt <attempt_id>',
   answer_id: 'получить: /attempt <attempt_id>',
   option_id: 'получить: /question <question_id> (ID варианта ответа)',
   options: 'перечень вариантов ответа',
@@ -370,6 +372,15 @@ const buildPayloadFromArgs = (
   return null;
 };
 
+const buildAttemptPayloadFromArgs = (args: string[]): Record<string, string> | null => {
+  if (args.length < 1) {
+    return null;
+  }
+  return {
+    test_id: args[0]
+  };
+};
+
 const joinArgs = (args: string[], startIndex: number): string | undefined => {
   if (args.length <= startIndex) {
     return undefined;
@@ -391,9 +402,15 @@ const parseBoolean = (value: string | undefined): boolean | null => {
   return null;
 };
 
+const isNotFoundError = (error: any): boolean => error?.response?.status === 404;
+
 const handleError = (error: any): BotResponse => {
   const status = error?.response?.status;
-  const detail = error?.response?.data?.error || error?.response?.data?.message || error?.message;
+  const detail =
+    error?.response?.data?.detail ||
+    error?.response?.data?.error ||
+    error?.response?.data?.message ||
+    error?.message;
   if (status === 401) {
     return errorResponse('Доступ запрещён: нужна авторизация.', true);
   }
@@ -768,15 +785,21 @@ export const handleActionCommand = async (
         return missingArgsMessage(['attempt_id']);
       }
       if (action === 'create') {
-        const payload = parseJsonPayload(joinArgs(command.args, 1));
+        const rawPayload = joinArgs(command.args, 1);
+        const payload = parseJsonPayload(rawPayload);
         if (!payload.ok) {
-          return jsonArgsMessage(
-            '/attempt_create <json_body>',
-            ['json_body', 'test_id', 'user_id', 'answers'],
-            payload.error
-          );
+          const altPayload = buildAttemptPayloadFromArgs(command.args.slice(1));
+          if (altPayload) {
+            const missing = missingFields(altPayload, ['test_id']);
+            if (missing.length > 0) {
+              return missingArgsMessage(missing);
+            }
+            const data = await mainClient.createTestAttempt(accessToken, altPayload);
+            return formatResponse('Попытка создана', data);
+          }
+          return jsonArgsMessage('/attempt_create <json_body>', ['json_body', 'test_id'], payload.error);
         }
-        const missing = missingFields(payload.value, ['test_id', 'user_id', 'answers']);
+        const missing = missingFields(payload.value, ['test_id']);
         if (missing.length > 0) {
           return missingArgsMessage(missing);
         }
@@ -791,19 +814,34 @@ export const handleActionCommand = async (
         return missingArgsMessage(['attempt_id']);
       }
       if (action === 'answer' && attemptId) {
-        const answerId = command.args[2];
+        const answerOrQuestionId = command.args[2];
         const optionId = command.args[3];
-        if (!answerId || !optionId) {
-          return missingArgsMessage([
-            ...(!answerId ? ['answer_id'] : []),
-            ...(!optionId ? ['option_id'] : [])
-          ]);
+        if (!answerOrQuestionId || !optionId) {
+          return errorResponse('Нужны attempt_id, answer_id|question_id и option_id.');
         }
-        const data = await mainClient.updateAnswer(accessToken, attemptId, answerId, optionId);
-        return formatResponse('Ответ обновлён', data);
+        try {
+          const data = await mainClient.updateAnswer(
+            accessToken,
+            attemptId,
+            answerOrQuestionId,
+            optionId
+          );
+          return formatResponse('Ответ обновлён', data);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            const created = await mainClient.createAnswer(
+              accessToken,
+              attemptId,
+              answerOrQuestionId,
+              optionId
+            );
+            return formatResponse('Ответ сохранён', created);
+          }
+          throw error;
+        }
       }
       if (action === 'answer' && !attemptId) {
-        return missingArgsMessage(['attempt_id', 'answer_id', 'option_id']);
+        return errorResponse('Нужны attempt_id, answer_id|question_id и option_id.');
       }
       if (!action.includes('-')) {
         const data = await mainClient.getAttempt(accessToken, action);

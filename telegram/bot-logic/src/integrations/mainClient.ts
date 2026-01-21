@@ -37,6 +37,12 @@ export interface MainClient {
   deleteQuestion(accessToken: string, questionId: string): Promise<unknown>;
   getAttempt(accessToken: string, attemptId: string): Promise<unknown>;
   finishAttempt(accessToken: string, attemptId: string): Promise<unknown>;
+  createAnswer(
+    accessToken: string,
+    attemptId: string,
+    questionId: string,
+    optionId: string
+  ): Promise<unknown>;
   updateAnswer(accessToken: string, attemptId: string, answerId: string, optionId: string): Promise<unknown>;
   getNotifications(accessToken: string): Promise<NotificationResponse>;
   clearNotifications(accessToken: string): Promise<void>;
@@ -405,6 +411,20 @@ class HttpMainClient implements MainClient {
     return response.data;
   }
 
+  async createAnswer(
+    accessToken: string,
+    attemptId: string,
+    questionId: string,
+    optionId: string
+  ): Promise<unknown> {
+    const response = await this.client.post(
+      `/api/attempts/${attemptId}/answers`,
+      { question_id: questionId, option_id: optionId },
+      { headers: this.authHeaders(accessToken) }
+    );
+    return response.data;
+  }
+
   async updateAnswer(
     accessToken: string,
     attemptId: string,
@@ -550,6 +570,10 @@ class MockMainClient implements MainClient {
   }
 
   async finishAttempt(): Promise<unknown> {
+    return { status: 'success' };
+  }
+
+  async createAnswer(): Promise<unknown> {
     return { status: 'success' };
   }
 

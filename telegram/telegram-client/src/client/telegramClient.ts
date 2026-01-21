@@ -118,6 +118,10 @@ const KNOWN_COMMANDS = new Set([
   'course_unenroll',
   'tests',
   'test',
+  'test_start',
+  'test_answer',
+  'test_finish',
+  'test_next',
   'test_create',
   'test_activate',
   'test_add_question',
@@ -131,6 +135,7 @@ const KNOWN_COMMANDS = new Set([
   'attempt_create',
   'attempt_finish',
   'attempt_answer',
+  'answer',
   'notifications',
   'notifications_clear'
 ]);
@@ -193,8 +198,19 @@ export const startTelegramClient = async (): Promise<void> => {
       }
     } catch (error) {
       logger.error({ error }, 'Failed to handle telegram update');
+      const detail =
+        (axios.isAxiosError(error) &&
+          (error.response?.data as { error?: string; message?: string; detail?: string } | undefined)
+            ?.detail) ||
+        (axios.isAxiosError(error) &&
+          (error.response?.data as { error?: string; message?: string; detail?: string } | undefined)
+            ?.error) ||
+        (axios.isAxiosError(error) &&
+          (error.response?.data as { error?: string; message?: string; detail?: string } | undefined)
+            ?.message);
+      const fallbackText = detail ? `Ошибка обработки: ${detail}` : 'Ошибка обработки. Попробуйте позже.';
       try {
-        await bot.sendMessage(msg.chat.id, 'Ошибка обработки. Попробуйте позже.');
+        await bot.sendMessage(msg.chat.id, fallbackText);
       } catch (sendError) {
         logger.warn({ error: sendError }, 'Failed to send error message to chat');
       }

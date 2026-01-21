@@ -3006,8 +3006,14 @@ void AddQuestionToTestHandler(const httplib::Request& req, httplib::Response& re
             4, nullptr, insertParams, nullptr, nullptr, 0);
 
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
+            std::string dbError = PQerrorMessage(conn) ? PQerrorMessage(conn) : "";
+            nlohmann::json err;
+            err["error"] = "Failed to add question to test";
+            if (!dbError.empty()) {
+                err["detail"] = dbError;
+            }
             res.status = 500;
-            res.set_content("{\"error\": \"Failed to add question to test\"}", "application/json");
+            res.set_content(err.dump(), "application/json");
             PQclear(result);
             return;
         }
