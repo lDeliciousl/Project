@@ -217,7 +217,7 @@ services:
     container_name: telegram-client
     restart: unless-stopped
     environment:
-      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      TELEGRAM_TOKEN: 8047964997:AAE5g7-jsNQab6IEWTPDQma7Uh5n9HDketE
       BOT_LOGIC_URL: http://telegram-nginx:8080
       RUN_TELEGRAM_CLIENT: "true"
       POLL_INTERVAL_MS: 1000
