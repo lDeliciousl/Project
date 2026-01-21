@@ -2,7 +2,11 @@ import { BotResponse, Command } from '../domain/types';
 import { MainClient } from '../integrations/mainClient';
 
 const actionSections: string[] = [
-  ['Все данные вводятся через пробелы', 'Например: /Команда Данные1 Данные2 ...'].join('\n'),
+  [
+    'Все данные вводятся через пробелы.',
+    'Название и описание с пробелами пишите в кавычках.',
+    'Например: /test_create "Название теста" "Описание теста" <course_id> <created_by>'
+  ].join('\n'),
   [
     '👤 Пользователи:',
     '• /users — список пользователей',
