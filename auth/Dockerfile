@@ -17,13 +17,13 @@ RUN go mod download
 COPY . .
 
 # 4. Проверяем что main.go существует
-RUN test -f main.go || (echo "❌ main.go not found!" && ls -la && exit 1)
+RUN test -f main.go || (echo " main.go not found!" && ls -la && exit 1)
 
 # 5. Собираем бинарник
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
 # 6. Проверяем что бинарник создался
-RUN test -f main || (echo "❌ Binary not built!" && exit 1)
+RUN test -f main || (echo " Binary not built!" && exit 1)
 
 # Runtime stage
 FROM alpine:latest

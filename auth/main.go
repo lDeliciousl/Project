@@ -25,7 +25,7 @@ import (
 func main() {
 	// 1. Загружаем конфигурацию
 	if err := configs.Load(); err != nil {
-		log.Fatalf("❌ Failed to load config: %v", err)
+		log.Fatalf(" Failed to load config: %v", err)
 	}
 
 	cfg := configs.AppConfig
@@ -33,7 +33,7 @@ func main() {
 	// 2. Подключаемся к MongoDB
 	mongoClient, err := connectToMongoDB(cfg.Database.URI, cfg.Database.Timeout)
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to MongoDB: %v", err)
+		log.Fatalf(" Failed to connect to MongoDB: %v", err)
 	}
 	defer mongoClient.Disconnect(context.Background())
 
@@ -94,15 +94,15 @@ func main() {
 
 	// Запуск в горутине
 	go func() {
-		log.Printf("🚀 Auth module started on http://%s", server.Addr)
-		log.Printf("📚 API Documentation:")
+		log.Printf(" Auth module started on http://%s", server.Addr)
+		log.Printf(" API Documentation:")
 		log.Printf("  POST /api/auth/init      - Инициализация авторизации")
 		log.Printf("  GET  /api/auth/verify/:token - Проверка статуса")
 		log.Printf("  POST /api/auth/refresh   - Обновление токенов")
 		log.Printf("  POST /api/auth/logout    - Выход из системы")
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("❌ Failed to start server: %v", err)
+			log.Fatalf(" Failed to start server: %v", err)
 		}
 	}()
 
@@ -111,16 +111,16 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("🛑 Shutting down server...")
+	log.Println(" Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("❌ Server forced to shutdown: %v", err)
+		log.Fatalf(" Server forced to shutdown: %v", err)
 	}
 
-	log.Println("✅ Server stopped")
+	log.Println(" Server stopped")
 }
 
 // connectToMongoDB подключается к MongoDB
@@ -139,7 +139,7 @@ func connectToMongoDB(uri string, timeout time.Duration) (*mongo.Client, error) 
 		return nil, err
 	}
 
-	log.Println("✅ Connected to MongoDB")
+	log.Println(" Connected to MongoDB")
 	return client, nil
 }
 
