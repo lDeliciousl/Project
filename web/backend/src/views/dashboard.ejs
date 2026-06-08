@@ -74,14 +74,18 @@
             gap: 20px;
         }
         .course-card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
             background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            transition: transform 0.3s ease;
+            transition: all 0.3s ease;
         }
         .course-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.15);
         }
         .course-title {
             font-size: 18px;
@@ -100,6 +104,24 @@
             border-radius: 15px;
             font-size: 12px;
             font-weight: 500;
+        }
+        .progress-bar {
+            background: #e2e8f0;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-fill {
+            background: #48bb78;
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
         }
         .status-active { background: #d4edda; color: #155724; }
         .status-completed { background: #f8d7da; color: #721c24; }
@@ -138,13 +160,22 @@
         <% if (courses && courses.length > 0) { %>
             <div class="courses-grid">
                 <% courses.forEach(course => { %>
-                    <div class="course-card">
+                    <a href="/course/<%= course.id %>" class="course-card">
                         <div class="course-title"><%= course.name %></div>
                         <div class="course-desc"><%= course.description || 'Нет описания' %></div>
                         <div class="course-status <%= course.active ? 'status-active' : 'status-completed' %>">
                             <%= course.active ? 'Активна' : 'Завершена' %>
                         </div>
-                    </div>
+                        
+                        <% if (course.progress !== undefined) { %>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="<%= 'width: ' + course.progress + '%;' %>"></div>
+                            </div>
+                            <div class="progress-text">
+                                Прогресс: <%= course.progress %>%
+                            </div>
+                        <% } %>
+                    </a>
                 <% }); %>
             </div>
         <% } else { %>
